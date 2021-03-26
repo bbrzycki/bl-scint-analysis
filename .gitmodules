@@ -1,0 +1,3 @@
+[submodule "ne2001_map/NE2001"]
+	path = ne2001_map/NE2001
+	url = git@github.com:bbrzycki/NE2001.git
