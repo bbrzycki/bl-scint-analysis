@@ -127,7 +127,7 @@ def get_Y(Z):
     return Y / np.mean(Y)
 
 
-def get_time_series(tscint, frame, num_samples=None):
+def get_time_series(tscint, frame, num_samples=None, p=2):
     """
     Make a scintillation time series in one shot, accepting the scintillation timescale
     and setigen.Frame object for parameters.
@@ -135,7 +135,7 @@ def get_time_series(tscint, frame, num_samples=None):
     if num_samples is None:
         num_samples = frame.tchans
 
-    rho = get_rho(frame.ts, tscint, p=2)
+    rho = get_rho(frame.ts, tscint, p=p)
 
     Z = build_Z(rho, num_samples)
     Y = get_Y(Z)
