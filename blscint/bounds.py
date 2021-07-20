@@ -12,6 +12,9 @@ def clipped_bounds(frame, min_bins=2, min_clipped=1, peak_prominence=4):
     """
     Run sigma clip on 2D data array, and find central peak above a certain
     number of clipped values along the time axis, per frequency bin.
+    
+    This will return an IndexError if the signal passes outside of the frame
+    (i.e. for very wide signals).
     """
     n_frame = t_norm_frame(frame)
     clipped_data = sigma_clip(n_frame.data)
@@ -36,25 +39,39 @@ def clipped_bounds(frame, min_bins=2, min_clipped=1, peak_prominence=4):
 
     # Change mask to thresholding by number of pixels along time axis
     mask_spec = mask_spec >= min_clipped
+#     print(peak_i, mask_spec)
 
     # Convolve with ones, to find where sequences are adjacent zeros
     convolved = np.convolve(mask_spec,
                             np.ones(min_bins).astype(int),
-                            'same')
+                            'valid')
     c_mask = (convolved != 0).astype(int)
-    difs = np.diff(c_mask)
-    cutoffs = np.where(np.abs(difs)==1)[0]
+#     print(c_mask)
+    diffs = np.diff(c_mask)
+#     print(diffs)
     
     # Find which range of bins the peak lies in
-    i = np.digitize(peak_i, cutoffs) - 1
+    l_idx = np.where(diffs > 0)[0]
+    r_idx = np.where(diffs < 0)[0]
+#     print(l_idx, r_idx)
+    # Max index with value under peak index, and min index with value over
     # Adjust left edge to make up for zero'd bins from the convolution,
     # since we only care about the signal
-    l, r = cutoffs[i] + (min_bins - 1), cutoffs[i + 1]
+    l = l_idx[l_idx + min_bins <= peak_i][-1] + min_bins
+    r = r_idx[r_idx >= peak_i][0]
+    
+#     cutoffs = np.where(np.abs(diffs)==1)[0]
+#     print(cutoffs)
+#     # Find which range of bins the peak lies in
+#     i = np.digitize(peak_i, cutoffs) - 1
+#     # Adjust left edge to make up for zero'd bins from the convolution,
+#     # since we only care about the signal
+#     l, r = cutoffs[i] + (min_bins), cutoffs[i + 1]
     
     metadata = {'num_peaks': len(peaks[0]), 'peaks': peaks}
-    return l, r, metadata
+    return l, r+1, metadata
 
-def bkgd_fit_bounds(spec, deg=7, snr_threshold=10):
+def polyfit_bounds(spec, deg=7, snr_threshold=10):
     """
     spec is a numpy array representing the spectrum.
     deg is the polynomial fit degree
@@ -79,11 +96,11 @@ def bkgd_fit_bounds(spec, deg=7, snr_threshold=10):
     cutoffs = np.where(spec - poly(x) <= 0)[0]
     
     i = np.digitize(peak_i, cutoffs) - 1
-    l_bound, r_bound = cutoffs[i], cutoffs[i + 1]
+    l, r = cutoffs[i], cutoffs[i + 1]
     
     metadata = {'num_peaks': len(peaks[0]), 'peaks': peaks}
     
-    return l_bound, r_bound, metadata
+    return l, r+1, metadata
 
 
 def gaussian_bounds(spec, half_width=3, peak_guess=None):
@@ -103,7 +120,7 @@ def gaussian_bounds(spec, half_width=3, peak_guess=None):
     peak = int(popt[1])
     sigma = abs(popt[2])
     offset = int(sigma * half_width)
-    return peak - offset, peak + offset, None
+    return peak - offset, peak + offset+1, None
 #     return int(peak), (-offset, offset)
 
 
@@ -120,6 +137,7 @@ def threshold_bounds(spec, half_width=3):
     
     peak = np.argmax(norm_spec)
     i = np.digitize(peak, cutoffs) - 1
-    return cutoffs[i], cutoffs[i + 1], None
+    l, r = cutoffs[i], cutoffs[i + 1]
+    return l, r+1, None
 #     offset1, offset2 = cutoffs[i] - peak, cutoffs[i + 1] - peak
 #     return peak, (offset1, offset2)
