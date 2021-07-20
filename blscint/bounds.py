@@ -4,8 +4,7 @@ import scipy.stats
 from astropy.stats import sigma_clip
 import setigen as stg
 
-from . import factors
-from .peaks import *
+from . import frame_proc
 
 
 def clipped_bounds(frame, min_bins=2, min_clipped=1, peak_prominence=4):
@@ -15,8 +14,10 @@ def clipped_bounds(frame, min_bins=2, min_clipped=1, peak_prominence=4):
     
     This will return an IndexError if the signal passes outside of the frame
     (i.e. for very wide signals).
+    
+    Note that this function accepts a frame instead of a 1D numpy array spectrum.
     """
-    n_frame = t_norm_frame(frame)
+    n_frame = frame_proc.t_norm_frame(frame)
     clipped_data = sigma_clip(n_frame.data)
     mask_spec = np.sum(clipped_data.mask, axis=0)
     

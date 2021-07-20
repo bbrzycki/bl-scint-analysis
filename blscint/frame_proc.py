@@ -31,7 +31,7 @@ def dedrift_frame(frame, drift_rate):
             start_idx = 0 + offset
             end_idx = start_idx + tr_data.shape[1]
         else:
-            end_idx = frame.data.shape[1] - 1 - offset
+            end_idx = frame.data.shape[1] - offset
             start_idx = end_idx - tr_data.shape[1]
         tr_data[i] = frame.data[i, start_idx:end_idx]
         
@@ -47,5 +47,13 @@ def dedrift_frame(frame, drift_rate):
         else:
             fch1 = frame.fs[::-1][0]
         
-    tr_frame = stg.Frame.from_data(frame.df, frame.dt, fch1, frame.ascending, tr_data)
+    tr_frame = stg.Frame.from_data(frame.df, 
+                                   frame.dt, 
+                                   fch1, 
+                                   frame.ascending,
+                                   tr_data,
+                                   metadata=frame.metadata,
+                                   waterfall=frame.get_waterfall())
+    if 'source_name' in tr_frame.waterfall.header:
+        tr_frame.waterfall.header['source_name'] += '_dedrifted'
     return tr_frame

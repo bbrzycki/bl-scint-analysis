@@ -4,8 +4,6 @@ import pandas as pd
 import setigen as stg
 import blimpy as bl
 
-from .peaks import *
-
 
 def make_dataframe(dat_file):
     """
