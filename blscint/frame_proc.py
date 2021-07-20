@@ -21,8 +21,17 @@ def t_norm_frame(frame, as_data=None):
     return n_frame
 
 
-def dedrift_frame(frame, drift_rate):
+def dedrift_frame(frame, drift_rate=None):
+    if drift_rate is None:
+        if 'drift_rate' in frame.metadata:
+            drift_rate = frame.metadata['drift_rate']
+        else:
+            raise KeyError('Please specify a drift rate to account for')
+            
+    # Calculate maximum pixel offset and raise an exception if necessary
     max_offset = int(abs(drift_rate) * frame.tchans * frame.dt / frame.df)
+    if max_offset >= frame.data.shape[1]:
+        raise ValueError(f'The provided drift rate ({drift_rate} Hz/s) is too high for the frame dimensions')
     tr_data = np.zeros((frame.data.shape[0], frame.data.shape[1] - max_offset))
 
     for i in range(frame.data.shape[0]):
@@ -53,7 +62,7 @@ def dedrift_frame(frame, drift_rate):
                                    frame.ascending,
                                    tr_data,
                                    metadata=frame.metadata,
-                                   waterfall=frame.get_waterfall())
+                                   waterfall=frame.check_waterfall())
     if 'source_name' in tr_frame.waterfall.header:
         tr_frame.waterfall.header['source_name'] += '_dedrifted'
     return tr_frame
