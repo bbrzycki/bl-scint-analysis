@@ -68,11 +68,18 @@ def clipped_bounds(frame, min_bins=2, min_clipped=1, peak_prominence=4):
 #     # since we only care about the signal
 #     l, r = cutoffs[i] + (min_bins), cutoffs[i + 1]
     
-    metadata = {'num_peaks': len(peaks[0]), 'peaks': peaks}
+    metadata = {
+        'num_peaks': len(peaks[0]), 
+        'peaks': peaks
+    }
     return l, r+1, metadata
+
 
 def polyfit_bounds(spec, deg=7, snr_threshold=10):
     """
+    Bounding box set by a polynomial fit to the background. Edges are set by
+    where the fit intersects the data on either side of the central peak.
+    
     spec is a numpy array representing the spectrum.
     deg is the polynomial fit degree
     """
@@ -98,13 +105,18 @@ def polyfit_bounds(spec, deg=7, snr_threshold=10):
     i = np.digitize(peak_i, cutoffs) - 1
     l, r = cutoffs[i], cutoffs[i + 1]
     
-    metadata = {'num_peaks': len(peaks[0]), 'peaks': peaks}
-    
+    metadata = {
+        'poly': poly, 
+        'num_peaks': len(peaks[0]), 
+        'peaks': peaks
+    }
     return l, r+1, metadata
 
 
 def gaussian_bounds(spec, half_width=3, peak_guess=None):
     """
+    Create bounds based on a Gaussian fit to the central peak.
+    
     spec is a numpy array representing the spectrum.
     half_width is how many sigma to go from center.
     """
@@ -126,6 +138,9 @@ def gaussian_bounds(spec, half_width=3, peak_guess=None):
 
 def threshold_bounds(spec, half_width=3):
     """
+    Create bounds based on intensity attentuation on either side of the central
+    peak. Threshold is set by ideal Gaussian profile, in units of standard deviations (sigma).
+    
     spec is a numpy array representing the spectrum.
     half_width is how many sigma to go from center.
     """
