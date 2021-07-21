@@ -19,10 +19,15 @@ def plot_bounds(frame, l, r, use_db=False, cb=True):
     plt.axvline(r, ls='--', c='w')
 
 
-def polyfit_bounds(spec, deg=7, snr_threshold=10):
+def polyfit_bounds(spec, deg=1, snr_threshold=10):
     """
     Bounding box set by a polynomial fit to the background. Edges are set by
     where the fit intersects the data on either side of the central peak.
+    
+    If the signal is broad compared to the spectrum or frame, the background fit
+    will highly intersect or even model out the actual signal, hiding any peaks. 
+    
+    Degrees to try: 1, 7.
     
     Parameters
     ----------
@@ -54,6 +59,8 @@ def polyfit_bounds(spec, deg=7, snr_threshold=10):
 
     # Get peaks above SNR threshold
     peaks = scipy.signal.find_peaks(spec - poly(x), prominence=snr_threshold * std)
+    if len(peaks[0]) == 0:
+        raise ValueError('No peaks found! Signal may be absent, too dim, or too wide')
     
     # Find highest peak
     i = np.argmax(peaks[1]['prominences'])
@@ -84,7 +91,8 @@ def gaussian_bounds(spec, half_width=3, peak_guess=None):
         Assuming a Gaussian signal profile, the half_width determines where to set the bounds,
         in units of sigma from the peak.
     peak_guess : int
-        Guess for peak index. Should normally be the center of the spectrum.
+        Guess for peak index. Should normally be the center of the spectrum, but can have 
+        strange side effects.
         
     Returns
     -------
@@ -158,6 +166,9 @@ def clipped_bounds(spec, min_empty_bins=2):
     """
     Run sigma clip on spectrum, and find central peak.
     
+    This method reduces the spectrum to a mask based on sigma_clip, so it can
+    be unreliable if the signal is broad compared to the size of the spectrum or frame.
+    
     Parameters
     ----------
     spec : ndarray
@@ -180,7 +191,7 @@ def clipped_bounds(spec, min_empty_bins=2):
     
     peaks = scipy.signal.find_peaks(mask_spec, prominence=1)
     if len(peaks[0]) == 0:
-        raise ValueError('No peaks found! Either signal is absent or too wide')
+        raise ValueError('No peaks found! Signal may be absent, too dim, or too wide')
     # Get the highest peak that's *closest* to the center of the frame
     center_bin = len(spec) // 2
     prominences = peaks[1]['prominences']

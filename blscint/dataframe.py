@@ -46,8 +46,8 @@ def get_frame_params(fn):
     
 def get_centered_frame(i, 
                        dataframe,
-                       fn,
-                       fchans, 
+                       fn=None,
+                       fchans=256, 
                        tchans=64, 
                        df=2.7939677238464355, 
                        dt=9.305762474666658,
@@ -63,6 +63,8 @@ def get_centered_frame(i,
     row = dataframe.loc[i]
     drift_rate = row['DriftRate']
     center_freq = row['Uncorrected_Frequency']
+    if fn is None:
+        fn = row['fn']
 
     adj_center_freq = center_freq + drift_rate/1e6 * tchans/2
     max_offset = int(abs(drift_rate) * tchans * dt / df)
