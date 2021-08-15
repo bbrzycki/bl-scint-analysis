@@ -66,17 +66,57 @@ def polyfit_bounds(spec, deg=1, snr_threshold=10):
     i = np.argmax(peaks[1]['prominences'])
     peak_i = peaks[0][i]
     
-    cutoffs = np.where(spec - poly(x) <= 0)[0]
+    cutoffs = np.where(spec - poly(x) <= 0)[0]\
     
     i = np.digitize(peak_i, cutoffs) - 1
-    l, r = cutoffs[i], cutoffs[i + 1]
+    l, r = cutoffs[i] + 1, cutoffs[i + 1]
     
     metadata = {
         'poly': poly, 
         'num_peaks': len(peaks[0]), 
         'peaks': peaks
     }
-    return l, r+1, metadata
+    return l, r, metadata
+
+
+def threshold_bounds(spec, half_width=3):
+    """
+    Create bounds based on intensity attentuation on either side of the central
+    peak. Threshold is set by ideal Gaussian profile, in units of standard deviations (sigma).
+    
+    Parameters
+    ----------
+    spec : ndarray
+        Intensity spectra
+    half_width : float
+        Assuming a Gaussian signal profile, the half_width determines where to set the bounds,
+        in units of sigma from the peak.
+        
+    Returns
+    -------
+    l : int
+        Lower bound
+    r : int
+        Upper bound
+    metadata : dict
+        Dictionary with metadata. Contains noise mean and spectra maximum,
+        which are used to normalize spec to the spectra maximum.
+    """
+    noise_spec = sigma_clip(spec, masked=True)
+    norm_spec = (spec - np.mean(noise_spec)) / (np.max(spec) - np.mean(noise_spec))
+    
+    threshold = stg.func_utils.gaussian(half_width, 0, 1)
+    cutoffs = np.where(norm_spec < threshold)[0]
+    
+    peak = np.argmax(norm_spec)
+    i = np.digitize(peak, cutoffs) - 1
+    l, r = cutoffs[i] + 1, cutoffs[i + 1]
+    
+    metadata = {
+        'noise_mean': np.mean(noise_spec),
+        'spec_max': np.max(spec)
+    }
+    return l, r, metadata
 
 
 def gaussian_bounds(spec, half_width=3, peak_guess=None):
@@ -119,47 +159,7 @@ def gaussian_bounds(spec, half_width=3, peak_guess=None):
     metadata = {
         'popt': popt
     }
-    return peak - offset, peak + offset+1, metadata
-
-
-def threshold_bounds(spec, half_width=3):
-    """
-    Create bounds based on intensity attentuation on either side of the central
-    peak. Threshold is set by ideal Gaussian profile, in units of standard deviations (sigma).
-    
-    Parameters
-    ----------
-    spec : ndarray
-        Intensity spectra
-    half_width : float
-        Assuming a Gaussian signal profile, the half_width determines where to set the bounds,
-        in units of sigma from the peak.
-        
-    Returns
-    -------
-    l : int
-        Lower bound
-    r : int
-        Upper bound
-    metadata : dict
-        Dictionary with metadata. Contains noise mean and spectra maximum,
-        which are used to normalize spec to the spectra maximum.
-    """
-    noise_spec = sigma_clip(spec, masked=True)
-    norm_spec = (spec - np.mean(noise_spec)) / (np.max(spec) - np.mean(noise_spec))
-    
-    threshold = stg.func_utils.gaussian(half_width, 0, 1)
-    cutoffs = np.where(norm_spec < threshold)[0]
-    
-    peak = np.argmax(norm_spec)
-    i = np.digitize(peak, cutoffs) - 1
-    l, r = cutoffs[i], cutoffs[i + 1]
-    
-    metadata = {
-        'noise_mean': np.mean(noise_spec),
-        'spec_max': np.max(spec)
-    }
-    return l, r+1, metadata
+    return peak - offset, peak + offset + 1, metadata
 
 
 def clipped_bounds(spec, min_empty_bins=2):
@@ -212,13 +212,13 @@ def clipped_bounds(spec, min_empty_bins=2):
     # Adjust left edge to make up for zero'd bins from the convolution,
     # since we only care about the signal
     l = l_idx[l_idx + min_empty_bins <= peak_i][-1] + min_empty_bins
-    r = r_idx[r_idx >= peak_i][0]
+    r = r_idx[r_idx >= peak_i][0] + 1
     
     metadata = {
         'num_peaks': len(peaks[0]), 
         'peaks': peaks
     }
-    return l, r+1, metadata
+    return l, r, metadata
 
 
 def clipped_2D_bounds(frame, min_empty_bins=2, min_clipped=1, peak_prominence=4):
@@ -296,10 +296,60 @@ def clipped_2D_bounds(frame, min_empty_bins=2, min_clipped=1, peak_prominence=4)
     # Adjust left edge to make up for zero'd bins from the convolution,
     # since we only care about the signal
     l = l_idx[l_idx + min_empty_bins <= peak_i][-1] + min_empty_bins
-    r = r_idx[r_idx >= peak_i][0]
+    r = r_idx[r_idx >= peak_i][0] + 1
     
     metadata = {
         'num_peaks': len(peaks[0]), 
         'peaks': peaks
     }
-    return l, r+1, metadata
+    return l, r, metadata
+
+
+def boxcar_bounds(spec, window_sizes=None):
+    """
+    Bounding box set by boxcar filter. Simplified version of 
+    matched filtering. Default window sizes: powers of 2.
+    
+    Parameters
+    ----------
+    spec : ndarray
+        Intensity spectra
+    window_sizes : list, array-like, optional
+        List of boxcar window sizes to try. If None, automatically uses
+        powers of 2 as window sizes.
+        
+    Returns
+    -------
+    l : int
+        Lower bound
+    r : int
+        Upper bound
+    metadata : dict
+        Dictionary with metadata related to peak-finding. Contains peak SNR 
+        corresponding to the "best" boxcar filter.
+    """
+    if window_sizes is None:
+        p = int(np.log2(len(spec)))
+        window_sizes = [2**x for x in range(p)]
+        
+    max_found = {'l': 0, 'r': len(spec), 'snr': 0}
+    for window in window_sizes:
+        corr = np.correlate(spec, np.ones(window), mode='valid') / window
+
+        clipped_corr = sigma_clip(corr)
+        m, s = np.mean(clipped_corr), np.std(clipped_corr)
+
+        peak_snr = (np.max(corr) - m) / s
+        peak_idx = np.argmax(corr)
+
+        l = peak_idx
+        r = peak_idx + window
+        if peak_snr > max_found['snr']:
+            max_found['l'] = l
+            max_found['r'] = r
+            max_found['snr'] = peak_snr
+            
+    metadata = {
+        'peak_snr': max_found['snr']
+    }
+    return max_found['l'], max_found['r'], metadata

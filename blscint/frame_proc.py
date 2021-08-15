@@ -63,6 +63,6 @@ def dedrift_frame(frame, drift_rate=None):
                                    tr_data,
                                    metadata=frame.metadata,
                                    waterfall=frame.check_waterfall())
-    if 'source_name' in tr_frame.waterfall.header:
-        tr_frame.waterfall.header['source_name'] += '_dedrifted'
+#     if tr_frame.waterfall is not None and 'source_name' in tr_frame.waterfall.header:
+#         tr_frame.waterfall.header['source_name'] += '_dedrifted'
     return tr_frame

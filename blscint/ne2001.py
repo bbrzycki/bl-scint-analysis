@@ -6,6 +6,8 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy import constants as const
 
+import matplotlib.pyplot as plt
+import tqdm
 
 def to_galactic(ra, dec=None):
     """
@@ -42,6 +44,8 @@ def query_ne2001(l, b, d, field=None):
     Query NE2001 model for various parameters, as described in 
     Cordes & Lazio 2002.
     
+    Note that this returns an astropy Quantity; use the `.value` property
+    to access the underlying value only.
     """
     current_path = os.path.abspath(os.path.dirname(__file__))
     exec_path = os.path.join(current_path, 'NE2001/bin.NE2001/run_NE2001.pl')
@@ -71,6 +75,48 @@ def query_ne2001(l, b, d, field=None):
     unit = u.Unit(unit)
     val = float(output.split()[2])
     return val * unit
+
+def plot_profile(l, b, d=(1, 20), steps=100, field='SCINTIME'):
+    """
+    Plot profile.
+    """
+    d = np.linspace(d[0], d[1], steps)
+        
+    p = np.empty(steps)
+    for i in tqdm.tqdm(range(steps)):
+        val = query_ne2001(l, b, d[i], field=field)
+        p[i] = val.value
+        unit = val.unit
+        
+    plt.plot(d, p)
+    plt.xlabel('Distance (kpc)')
+    plt.ylabel(f'{field} ({unit})')
+    
+def plot_map(l=(-2, 2), b=(-2, 2), d=8, l_steps=5, b_steps=5, field='SCINTIME'):
+    """
+    Plot 2D map of calculated field.
+    """
+    l = np.linspace(l[0], l[1], l_steps)
+    dl = l[1] - l[0]
+    b = np.linspace(b[0], b[1], b_steps)
+    db = b[1] - b[0]
+    
+    f_map = np.empty((b_steps, l_steps))
+    with tqdm.tqdm(total=l_steps * b_steps) as pbar:
+        pbar.set_description('Pointings')
+        for i in range(l_steps):
+            for j in range(b_steps):
+                val = query_ne2001(l[i], b[j], d, field=field)
+                f_map[b_steps - 1 - j, i] = val.value
+                unit = val.unit
+                pbar.update(1)
+            
+    plt.imshow(f_map, interpolation='none', 
+               extent=[l[0]-dl/2, l[-1]+dl/2, b[0]-db/2, b[-1]+db/2])
+    c = plt.colorbar()
+    plt.title(f'{field} ({unit})')
+    plt.xlabel('l')
+    plt.ylabel('b')
 
 def get_standard_tscint(l, b, d):
     """
