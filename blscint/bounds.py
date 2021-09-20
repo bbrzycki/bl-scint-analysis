@@ -10,13 +10,15 @@ import setigen as stg
 from . import frame_proc
 
 
-def plot_bounds(frame, l, r, use_db=False, cb=True):
+def plot_bounds(frame, l, r, use_db=False, cb=True, lw=2):
     """
     Plot frame data with overlaid bounding boxes.
+    
+    lw: line width
     """
     frame.plot(use_db=use_db, cb=cb)
-    plt.axvline(l, ls='--', c='w')
-    plt.axvline(r, ls='--', c='w')
+    plt.axvline(l, ls='--', c='w', lw=lw)
+    plt.axvline(r, ls='--', c='w', lw=lw)
 
 
 def polyfit_bounds(spec, deg=1, snr_threshold=10):

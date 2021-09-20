@@ -36,15 +36,45 @@ def get_frame_params(fn):
     """
     Get relevant parameters for grabbing data. 
     """
-    container = bl.Waterfall(fn).container
+    container = bl.Waterfall(fn, load_data=False).container
     return {
         'tchans': container.file_shape[0],
         'df': abs(container.header['foff']) * 1e6,
         'dt': container.header['tsamp']
     }
+
+
+def centered_frame(fn,
+                   drift_rate,
+                   center_freq,
+                   fchans=256):
+    """
+    Here, center_freq is in MHz. 
+    """
+    container = bl.Waterfall(fn, load_data=False).container
+    tchans = container.file_shape[0]
+    df = abs(container.header['foff']) * 1e6
+    dt = container.header['tsamp']
+    
+    adj_center_freq = center_freq + drift_rate/1e6 * tchans/2
+    max_offset = int(abs(drift_rate) * tchans * dt / df)
+    if drift_rate >= 0:
+        adj_fchans = [0, max_offset]
+    else:
+        adj_fchans = [max_offset, 0]
+    wf = bl.Waterfall(fn,
+                      f_start=adj_center_freq - (fchans/2 + adj_fchans[0]) * df/1e6,
+                      f_stop=adj_center_freq + (fchans/2 + adj_fchans[1]) * df/1e6)
+    frame = stg.Frame(wf)
+    frame.add_metadata({
+        'drift_rate': drift_rate,
+        'center_freq': center_freq,
+        'fn': fn,
+    })
+    return frame
     
     
-def get_centered_frame(i, 
+def turbo_centered_frame(i, 
                        dataframe,
                        fn=None,
                        fchans=256, 
