@@ -7,7 +7,7 @@ from astropy.stats import sigma_clip
 
 import setigen as stg
 
-from . import frame_proc
+from . import frame_processing
 
 
 def plot_bounds(frame, l, r, use_db=False, cb=True, lw=2):

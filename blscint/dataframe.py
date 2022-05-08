@@ -47,15 +47,21 @@ def get_frame_params(fn):
 def centered_frame(fn,
                    drift_rate,
                    center_freq,
-                   fchans=256):
+                   fchans=256,
+                   frame_params=None):
     """
     Here, center_freq is in MHz. 
     """
-    container = bl.Waterfall(fn, load_data=False).container
-    tchans = container.file_shape[0]
-    df = abs(container.header['foff']) * 1e6
-    dt = container.header['tsamp']
-    
+    if frame_params is not None:
+        tchans = frame_params['tchans']
+        df = frame_params['df']
+        dt = frame_params['dt']
+    else:
+        container = bl.Waterfall(fn, load_data=False).container
+        tchans = container.file_shape[0]
+        df = abs(container.header['foff']) * 1e6
+        dt = container.header['tsamp']
+        
     adj_center_freq = center_freq + drift_rate/1e6 * tchans/2
     max_offset = int(abs(drift_rate) * tchans * dt / df)
     if drift_rate >= 0:

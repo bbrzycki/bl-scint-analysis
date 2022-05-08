@@ -21,20 +21,19 @@ import scipy.linalg
 import setigen as stg
 from setigen.funcs import func_utils
 from . import factors
-from . import time_series
+from . import ts_statistics
 
 
-def get_rho(ts, tscint, p):
+def get_rho(t_d, dt, p):
     """
-    Get autocorrelations with time array ts and scintillation
-    timescale tscint, up to lag p.
+    Get target autocorrelations with time array ts and scintillation
+    timescale t_d, up to lag p. Modeled as Gaussian according to t_d. 
     """
     # Calculate sigma from width
-    sigma = tscint / factors.hwem_m
-    y = func_utils.gaussian(ts, (ts[0] + ts[-1]) / 2, sigma)
-#     y = func_utils.gaussian(ts, ts[len(ts)//2], sigma)
-    rho = time_series.autocorr(y)[1:p+1]
-    return rho
+    r = stg.func_utils.gaussian(np.arange(1, p + 1),
+                                0, 
+                                t_d / dt / factors.hwem_m)
+    return r
 
 
 # def psi(r):
@@ -48,6 +47,7 @@ def get_rho(ts, tscint, p):
 #         for j in range(0, p - i - 1):
 #             covariance[i + j + 1, j] = covariance[j, i + j + 1] = r[i]
 #     return covariance
+
 
 def psi(r):
     """
@@ -114,30 +114,12 @@ def get_Y(Z):
     return Y / np.mean(Y)
 
 
-def get_time_series(tscint, frame, num_samples=None, p=2):
+def get_ts_arta(t_d, dt, num_samples, p=2):
     """
-    Make a scintillation time series in one shot, accepting the scintillation timescale
-    and setigen.Frame object for parameters.
+    Produce time series data via an ARTA process. 
     """
-    if num_samples is None:
-        num_samples = frame.tchans
-
-    rho = get_rho(frame.ts, tscint, p=p)
-
+    rho = get_rho(t_d, dt, p)
     Z = build_Z(rho, num_samples)
     Y = get_Y(Z)
     return Y
 
-
-def scint_t_profile(Y, level=1):
-    def t_profile(t):
-        if isinstance(t, np.ndarray):
-            assert len(Y) == t.shape[0]
-            print(t.shape)
-            return np.repeat(Y.reshape((t.shape[0], 1)) * level, t.shape[1],
-                             axis=1)
-        elif isinstance(t, list):
-            return Y[:len(t)]
-        else:
-            return 0
-    return t_profile

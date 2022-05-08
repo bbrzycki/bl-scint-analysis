@@ -9,6 +9,7 @@ from astropy import constants as const
 import matplotlib.pyplot as plt
 import tqdm
 
+
 def to_galactic(ra, dec=None):
     """
     Convert RA/Dec to galactic coordinates (l, b).
@@ -38,6 +39,7 @@ def to_galactic(ra, dec=None):
             c = SkyCoord(ra, dec)
     gal = c.galactic
     return gal.l.value, gal.b.value
+
 
 def query_ne2001(l, b, d, field=None):
     """
@@ -76,6 +78,7 @@ def query_ne2001(l, b, d, field=None):
     val = float(output.split()[2])
     return val * unit
 
+
 def plot_profile(l, b, d=(1, 20), steps=100, field='SCINTIME'):
     """
     Plot profile.
@@ -91,6 +94,7 @@ def plot_profile(l, b, d=(1, 20), steps=100, field='SCINTIME'):
     plt.plot(d, p)
     plt.xlabel('Distance (kpc)')
     plt.ylabel(f'{field} ({unit})')
+    
     
 def plot_map(l=(-2, 2), b=(-2, 2), d=8, l_steps=5, b_steps=5, field='SCINTIME'):
     """
@@ -118,7 +122,8 @@ def plot_map(l=(-2, 2), b=(-2, 2), d=8, l_steps=5, b_steps=5, field='SCINTIME'):
     plt.xlabel('l')
     plt.ylabel('b')
 
-def get_standard_tscint(l, b, d):
+    
+def get_standard_t_d(l, b, d):
     """
     Use NE2001 to estimate scintillation time at 1 GHz and 1 km/s transverse velocity.
     
@@ -138,7 +143,8 @@ def get_standard_tscint(l, b, d):
     """
     return query_ne2001(l, b, d, field='SCINTIME')
 
-def scale_tscint(t_d, f=1, v=100, regime='moderate'):
+
+def scale_t_d(t_d, f=1, v=100, regime='moderate'):
     """
     Scale scintillation time by frequency and effective transverse velocity of 
     the diffraction pattern with respect to the observer. Changes exponential 
@@ -165,9 +171,10 @@ def scale_tscint(t_d, f=1, v=100, regime='moderate'):
         f_exp = 1
     else:
         f_exp = 1.2
-    return t_d * (f / 1)**(f_exp) * (v / 100)**(-1)
+    return t_d * (f / 1)**(f_exp) * (np.abs(v) / 100)**(-1)
 
-def get_tscint(l, b, d, f=1, v=100, regime='moderate'):
+
+def get_t_d(l, b, d, f=1, v=100, regime='moderate'):
     """
     Use NE2001 to estimate scintillation time at a specified frequency and 
     effective transverse velocity of the diffraction pattern with respect to
@@ -195,8 +202,8 @@ def get_tscint(l, b, d, f=1, v=100, regime='moderate'):
     t_d : float
         Scintillation timescale in s
     """
-    t_st = get_standard_tscint(l, b, d)
-    return scale_tscint(t_st, f, v, regime)
+    t_st = get_standard_t_d(l, b, d)
+    return scale_t_d(t_st, f, v, regime)
     
 
 def get_fresnel(f, D, normalize=True):

@@ -24,7 +24,10 @@ setuptools.setup(
        'astropy>=4.0',
        'blimpy>=2.0.0',
        'setigen>=2.0.6',
+       'galpy>=1.7.2',
        'matplotlib>=3.1.3',
+       'seaborn>=0.11.2',
+       'pandas>=1.4.2',
        'tqdm>=4.47.0',
        'sphinx-rtd-theme>=0.4.3'
     ],
