@@ -225,3 +225,4 @@ def get_fresnel(f, D, normalize=True):
     if normalize:
         l_f = np.sqrt(l_f / (2 * np.pi))
     return l_f
+
