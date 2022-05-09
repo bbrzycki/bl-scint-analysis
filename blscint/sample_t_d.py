@@ -267,13 +267,13 @@ class SampledNEData(object):
         for quantity in self.data_dict:
             print(self.labels[quantity])
             data = self.data_dict[quantity]
-            print(f"Median: {np.median(data)}")
-            print(f"MAD: {median_absolute_deviation(data)}")
-            print(f"Std: {np.std(data)}")
-            print(f'Coverage: {coverage(data, start=np.median(data)-median_absolute_deviation(data), stop=np.median(data)+median_absolute_deviation(data))}')
+            print(f"Median: {np.median(data):.3}")
+            print(f"MAD: {median_absolute_deviation(data):.3}")
+            print(f"Std: {np.std(data):.3}")
+            print(f'Coverage: {coverage(data, start=np.median(data)-median_absolute_deviation(data), stop=np.median(data)+median_absolute_deviation(data)):.3}')
             
-            print(f"IQ: {np.quantile(data, 0.25)} to {np.quantile(data, 0.75)}")
-            print(f"IQR: {scipy.stats.iqr(data)}")
+            print(f"IQ: {np.quantile(data, 0.25):.3} to {np.quantile(data, 0.75):.3}")
+            print(f"IQR: {scipy.stats.iqr(data):.3}")
             print("-"*10)
             
     def plot(self):
@@ -288,7 +288,7 @@ class SampledNEData(object):
             if quantity == 'tau_d':
                 plt.sca(axs[1, 1])
             data = self.data_dict[quantity]
-            clipped_data = sigma_clip(sigma_clip(data, masked=False), masked=False)
+            clipped_data = sigma_clip(data, maxiters=10, masked=False)
             _, bins = np.histogram(clipped_data, bins=25)
             plt.hist(data, bins=bins)
             plt.xlabel(f'{self.labels[quantity]} ({self.units[quantity]})')
