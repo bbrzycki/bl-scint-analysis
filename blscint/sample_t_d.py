@@ -138,6 +138,30 @@ def visualize_mc(t_ds):
     
     plt.tight_layout()
     
+    
+def transition_freqs(l, b, d=(1e-3, 20), d_steps=1000):
+    """
+    Get transition from strong to weak scattering.
+    """
+    freqs = np.empty(d_steps)
+    d = np.linspace(d[0], d[1], d_steps)
+    for i in tqdm.tqdm(range(d_steps)):
+        freqs[i] = ne2001.query_ne2001(l, b, d[i], field='NU_T').to(u.GHz).value
+    return freqs
+
+
+def min_d_ss(l, b, d=(1e-3, 20), f=(4, 8), d_steps=1000):
+    """
+    Get min distince for strong scattering.
+    """
+    f_max = np.max(f)
+    freqs = np.empty(d_steps)
+    d = np.linspace(d[0], d[1], d_steps)
+    for i in range(d_steps):
+        if ne2001.query_ne2001(l, b, d[i], field='NU_T').to(u.GHz).value > f_max:
+            return d[i] * u.kpc
+    return None
+    
 
 class NESampler(object):
     """
@@ -150,15 +174,16 @@ class NESampler(object):
                  d_steps=1000):
         self.l, self.b = l, b
         self.d = d
+        self.d_steps = d_steps
         self.n = n
         
         try:
             if d_sampling_type == 'density':
                 # Sample by density
-                d = np.linspace(d[0], d[1], d_steps) * u.kpc
+                d = np.linspace(d[0], d[1], d_steps)
                 cs = coord.SkyCoord(l=l*u.deg, b=b*u.deg,
-                                    distance=d,
-                                   frame='galactic')
+                                    distance=d*u.kpc,
+                                    frame='galactic')
                 gcs = cs.transform_to(coord.Galactocentric(galcen_distance=8.21*u.kpc)) 
                 gcs.representation_type = 'cylindrical'
                 densities = density_tot(gcs.rho.to(u.kpc).value, gcs.z.to(u.kpc).value)
@@ -169,6 +194,7 @@ class NESampler(object):
                 d = np.random.uniform(d[0], d[1], n)
         except TypeError:
             d = np.repeat(d, n)
+            print(f"Transition Frequency is {ne2001.query_ne2001(l, b, d=d, field='NU_T')}")
             
         self.base_t_ds = np.empty(n)
         self.base_nu_ds = np.empty(n)
@@ -195,6 +221,7 @@ class NESampler(object):
         """
         Sample frequencies, transverse velocities, and scale base model values appropriately.
         """
+        print(f"Min distance for strong scattering is {min_d_ss(self.l, self.b, d=(1e-3, 20), f=f, d_steps=self.d_steps)}")
         try:
             f = np.random.uniform(f[0], f[1], self.n)
         except TypeError:
@@ -263,17 +290,25 @@ class SampledNEData(object):
         nu_d = np.concatenate(self.nu_d, other.nu_d)
         return SampledNEParams(t_d=t_d, nu_d=nu_d)
     
+    def mask(self, mask):
+        return SampledNEParams(t_d=self.t_d[mask], nu_d=self.nu_d[mask])
+    
     def report(self):
         for quantity in self.data_dict:
-            print(self.labels[quantity])
+            print(f"{self.labels[quantity]}:")
             data = self.data_dict[quantity]
-            print(f"Median: {np.median(data):.3}")
-            print(f"MAD: {median_absolute_deviation(data):.3}")
-            print(f"Std: {np.std(data):.3}")
-            print(f'Coverage: {coverage(data, start=np.median(data)-median_absolute_deviation(data), stop=np.median(data)+median_absolute_deviation(data)):.3}')
+            clipped_data = sigma_clip(data, maxiters=10, masked=False)
+            vals, bins = np.histogram(clipped_data, bins=25)
+            mode_idx = np.argmax(vals)
+            mode = (bins[mode_idx] + bins[mode_idx + 1]) / 2
             
-            print(f"IQ: {np.quantile(data, 0.25):.3} to {np.quantile(data, 0.75):.3}")
-            print(f"IQR: {scipy.stats.iqr(data):.3}")
+            print(f"Median: {np.median(data):.3} {self.units[quantity]}")
+            print(f"MAD: {median_absolute_deviation(data):.3} {self.units[quantity]}")
+            print(f'Coverage: {coverage(data, start=np.median(data)-median_absolute_deviation(data), stop=np.median(data)+median_absolute_deviation(data)):.3}')
+            print(f"Std: {np.std(data):.3} {self.units[quantity]}")
+            print(f"Mode: {mode:.3} {self.units[quantity]}")
+            
+            print(f"IQ: {np.quantile(data, 0.25):.3} {self.units[quantity]} -- {np.quantile(data, 0.75):.3} {self.units[quantity]}")
             print("-"*10)
             
     def plot(self):
@@ -289,7 +324,9 @@ class SampledNEData(object):
                 plt.sca(axs[1, 1])
             data = self.data_dict[quantity]
             clipped_data = sigma_clip(data, maxiters=10, masked=False)
-            _, bins = np.histogram(clipped_data, bins=25)
+            vals, bins = np.histogram(clipped_data, bins=25)
+            mode_idx = np.argmax(vals)
+            mode = (bins[mode_idx] + bins[mode_idx + 1]) / 2
             plt.hist(data, bins=bins)
             plt.xlabel(f'{self.labels[quantity]} ({self.units[quantity]})')
             plt.ylabel('Counts')
@@ -299,5 +336,6 @@ class SampledNEData(object):
             plt.axvline(np.quantile(data, 0.75), ls='--', c='k')
             plt.axvline(np.median(data)-median_absolute_deviation(data), ls=':', c='b')
             plt.axvline(np.median(data)+median_absolute_deviation(data), ls=':', c='b')
+            plt.axvline(mode, ls='-', c='g')
             plt.title(f'{np.median(data):.3} \u00B1 {median_absolute_deviation(data):.3} {self.units[quantity]} (std: {np.std(sigma_clip(sigma_clip(data, masked=False), masked=False)):.3})')
         plt.tight_layout()
