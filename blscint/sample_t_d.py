@@ -5,6 +5,11 @@ from astropy import units as u
 import astropy.coordinates as coord
 coord.galactocentric_frame_defaults.set('v4.0') 
 
+try:
+    import cPickle as pickle
+except:
+    import pickle
+    
 import scipy.stats
 
 from astropy.stats import sigma_clip
@@ -16,7 +21,7 @@ from . import ne2001
 
 # Stellar density model from McMillan 2017, 'The mass distribution and gravitational potential of 
 # the Milky Way'. All units in M_sun, kpc. 
-def density_bulge(R, z):
+def mcmillan_rho_bulge(R, z):
     q = 0.5
     r0 = 0.075
     alpha = 1.8
@@ -25,84 +30,20 @@ def density_bulge(R, z):
     rho0b = 97.3e9
     return rho0b / (1 + rprime/r0)**alpha * np.exp(-(rprime/rcut)**2)
 
-def density_thin(R, z):
+def mcmillan_rho_thin(R, z):
     S0 = 886.7e6
     zd = 0.300
     Rd = 2.53
     return S0/(2*zd) * np.exp(-np.abs(z)/zd - np.abs(R)/Rd)
 
-def density_thick(R, z):
+def mcmillan_rho_thick(R, z):
     S0 = 156.7e6
     zd = 0.900
     Rd = 3.38
     return S0/(2*zd) * np.exp(-np.abs(z)/zd - np.abs(R)/Rd)
 
-def density_tot(R, z):
-    return density_bulge(R, z) + density_thin(R, z) + density_thick(R, z)
-
-
-def mc_sample(l, 
-              b, 
-              d=(1e-3, 20), 
-              f=(4, 8), 
-              v=(5, 100), 
-              n=1000, 
-              d_sampling_type='density',
-              # galaxy_rotation=False,
-              d_steps=1000,
-              scint_regime='moderate'):
-    """
-    Monte Carlo sampling of scintillation timescales. d, f, v can be single values or a tuple range.
-    
-    Uses uniform distributions for frequency and transverse velocity. n is number of samples.
-    
-    With parameter `d_sampling_type`, specify how distance is sampled: stellar 'density' 
-    or 'uniform'.
-    
-    With parameter `galaxy_rotation`, specify if transverse velocity adds appropriate galactic
-    rotation term.
-    """
-    try:
-        if d_sampling_type == 'density':
-            # Sample by density
-            d = np.linspace(d[0], d[1], d_steps) * u.kpc
-            cs = coord.SkyCoord(l=l*u.deg, b=b*u.deg,
-                                distance=d,
-                               frame='galactic')
-            gcs = cs.transform_to(coord.Galactocentric(galcen_distance=8.21*u.kpc)) 
-            gcs.representation_type = 'cylindrical'
-            densities = density_tot(gcs.rho.to(u.kpc).value, gcs.z.to(u.kpc).value)
-            
-            norm_densities = densities / np.sum(densities)
-            d = np.random.choice(d, p=norm_densities, size=n)
-        else:
-            d = np.random.uniform(d[0], d[1], n)
-    except TypeError:
-        d = np.repeat(d, n)
-        
-    try:
-        f = np.random.uniform(f[0], f[1], n)
-    except TypeError:
-        f = np.repeat(f, n)
-        
-    try:
-        v = np.random.uniform(v[0], v[1], n)
-    except TypeError:
-        v = np.repeat(v, n)
-    # if galaxy_rotation:
-    #     for i in range(len(d)):
-    #         cs = coord.SkyCoord(l=l*u.deg, b=b*u.deg,
-    #                             distance=d[i],
-    #                            frame='galactic')
-    #         gcs = cs.transform_to(coord.Galactocentric(galcen_distance=8.21*u.kpc)) 
-    #         gcs.representation_type = 'cylindrical'
-    #         R = gcs.rho.to(u.kpc).value
-    #         v_circ = np.sum([p.vcirc(R*u.kpc)**2 for p in McMillan17])**0.5
-    
-    t_ds = np.empty(n)
-    for i in tqdm.tqdm(range(n)):
-        t_ds[i] = ne2001.get_t_d(l, b, d[i], f[i], v[i], regime=scint_regime).value
-    return t_ds
+def mcmillan_rho_tot(R, z):
+    return mcmillan_rho_bulge(R, z) + mcmillan_rho_thin(R, z) + mcmillan_rho_thick(R, z)
 
 
 def coverage(t_ds, start=None, stop=None):
@@ -150,14 +91,14 @@ def transition_freqs(l, b, d=(1e-3, 20), d_steps=1000):
     return freqs
 
 
-def min_d_ss(l, b, d=(1e-3, 20), f=(4, 8), d_steps=1000):
+def min_d_ss(l, b, d=(1e-3, 20), f=(4, 8), delta_d=0.01):
     """
     Get min distince for strong scattering.
     """
     f_max = np.max(f)
-    freqs = np.empty(d_steps)
-    d = np.linspace(d[0], d[1], d_steps)
-    for i in range(d_steps):
+    d = np.arange(d[0], d[1] + delta_d / 2, delta_d)
+    freqs = np.empty(d.size)
+    for i in range(d.size):
         if ne2001.query_ne2001(l, b, d[i], field='NU_T').to(u.GHz).value > f_max:
             return d[i] * u.kpc
     return None
@@ -168,40 +109,51 @@ class NESampler(object):
     Class for sampling scintillation estimates from NE2001 electron density model.
     """
     def __init__(self, l, b, 
-                 d=(1e-3, 20),
-                 n=1000, 
-                 d_sampling_type='density',
-                 d_steps=1000):
+                 d=(0.01, 20),
+                 delta_d=0.01,
+                 galcen_distance=8.21):
         self.l, self.b = l, b
-        self.d = d
-        self.d_steps = d_steps
-        self.n = n
+        self.delta_d = delta_d
         
         try:
-            if d_sampling_type == 'density':
-                # Sample by density
-                d = np.linspace(d[0], d[1], d_steps)
-                cs = coord.SkyCoord(l=l*u.deg, b=b*u.deg,
-                                    distance=d*u.kpc,
-                                    frame='galactic')
-                gcs = cs.transform_to(coord.Galactocentric(galcen_distance=8.21*u.kpc)) 
-                gcs.representation_type = 'cylindrical'
-                densities = density_tot(gcs.rho.to(u.kpc).value, gcs.z.to(u.kpc).value)
-
-                norm_densities = densities / np.sum(densities)
-                d = np.random.choice(d, p=norm_densities, size=n)
-            else:
-                d = np.random.uniform(d[0], d[1], n)
-        except TypeError:
-            d = np.repeat(d, n)
-            print(f"Transition Frequency is {ne2001.query_ne2001(l, b, d=d, field='NU_T')}")
+            # Sample by density
+            self.d = np.arange(d[0], d[1] + delta_d / 2, delta_d)
+            cs = coord.SkyCoord(l=l*u.deg, b=b*u.deg,
+                                distance=self.d*u.kpc,
+                                frame='galactic')
+            gcs = cs.transform_to(coord.Galactocentric(galcen_distance=galcen_distance*u.kpc)) 
+            gcs.representation_type = 'cylindrical'
+            self.d_rel_prob = mcmillan_rho_tot(gcs.rho.to(u.kpc).value, gcs.z.to(u.kpc).value)
             
-        self.base_t_ds = np.empty(n)
-        self.base_nu_ds = np.empty(n)
-        for i in tqdm.tqdm(range(n)):
-            self.base_t_ds[i] = ne2001.query_ne2001(l, b, d[i], field='SCINTIME').value
-            self.base_nu_ds[i] = ne2001.query_ne2001(l, b, d[i], field='SBW').to(u.Hz).value
-        self.base_data = SampledNEData(t_d=self.base_t_ds, nu_d=self.base_nu_ds)
+            raw_t_ds = np.empty(self.d.size)
+            raw_nu_ds = np.empty(self.d.size)
+            for i in tqdm.tqdm(range(self.d.size)):
+                raw_t_ds[i] = ne2001.query_ne2001(l, b, self.d[i], field='SCINTIME').value
+                raw_nu_ds[i] = ne2001.query_ne2001(l, b, self.d[i], field='SBW').to(u.Hz).value
+        except TypeError:
+            self.d = d
+            raw_t_ds = ne2001.query_ne2001(l, b, d, field='SCINTIME').value
+            raw_nu_ds = ne2001.query_ne2001(l, b, d, field='SBW').to(u.Hz).value
+            print(f"Transition Frequency is {ne2001.query_ne2001(l, b, d=d, field='NU_T')}")
+
+        self.raw_data = NEData(t_d=raw_t_ds, nu_d=raw_nu_ds)
+            
+    def save_pickle(self, filename):
+        """
+        Save entire sampler (including NE2001 calculations) as a pickled file (.pickle).
+        """
+        with open(filename, 'wb') as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load_pickle(cls, filename):
+        """
+        Load sampler object from a pickled file (.pickle), 
+        created with NESampler.save_pickle.
+        """
+        with open(filename, 'rb') as f:
+            sampler = pickle.load(f)
+        return sampler
             
     def tau_d(self, nu_d, C1=1.16):
         """
@@ -217,29 +169,60 @@ class NESampler(object):
         C2 = 2.02
         return C2 / (2 * np.pi * t_d)
     
-    def sample(self, f=(4, 8), v=(5, 100), scint_regime='moderate'):
+    def sample(self, n=1000, f=(4, 8), v=(5, 100), d=None, 
+               d_sampling_type='density', scint_regime='moderate', verbose=True):
         """
         Sample frequencies, transverse velocities, and scale base model values appropriately.
         """
-        print(f"Min distance for strong scattering is {min_d_ss(self.l, self.b, d=(1e-3, 20), f=f, d_steps=self.d_steps)}")
+        min_d = min_d_ss(self.l, self.b, d=(1e-3, 20), f=f, delta_d=self.delta_d)
+        if min_d is None:
+            raise RuntimeError('Strong regime is never achieved along the line of sight!')
+        else:
+            min_d = min_d.to(u.kpc).value
+            if verbose:
+                print(f"Min distance for strong scattering is {min_d:.3} kpc")
+        
+        if isinstance(self.d, (int, float)):
+            sampled_t_ds = np.repeat(self.raw_data.t_d, n)
+            sampled_nu_ds = np.repeat(self.raw_data.nu_d, n)
+            sampled_ds = np.repeat(self.d, n)
+        else:
+            d_idx = np.arange(self.d.size)
+            # Enforce strong scattering regime, and optional distance cut
+            if d is None:
+                d_idx = d_idx[(self.d >= min_d)]
+            else:
+                d_idx = d_idx[(self.d >= np.max(d[0], min_d)) & (self.d <= d[1])]
+                
+            if d_sampling_type == 'density':
+                # d = self.d[d_idx]
+                # print(self.d_rel_prob.shape, d_idx.shape)
+                d_prob = self.d_rel_prob[d_idx] / np.sum(self.d_rel_prob[d_idx])
+                sampled_idx = np.random.choice(d_idx, size=n, p=d_prob)
+            else:
+                sampled_idx = np.random.choice(d_idx, size=n)
+            sampled_t_ds = self.raw_data.t_d[sampled_idx]
+            sampled_nu_ds = self.raw_data.nu_d[sampled_idx]
+            sampled_ds = self.d[sampled_idx]
+        
         try:
-            f = np.random.uniform(f[0], f[1], self.n)
+            f = np.random.uniform(f[0], f[1], n)
         except TypeError:
-            f = np.repeat(f, self.n)
+            f = np.repeat(f, n)
 
         try:
-            v = np.random.uniform(v[0], v[1], self.n)
+            v = np.random.uniform(v[0], v[1], n)
         except TypeError:
-            v = np.repeat(v, self.n)
+            v = np.repeat(v, n)
             
         # Scintillation timescale scaling    
         if scint_regime == 'very_strong':
             # According to Cordes & Lazio 1991, there should be an inner scale l1 scaling here as well.
-            t_ds = self.base_data.t_d * (f / 1)**1 * (np.abs(v) / 100)**(-1)
-            nu_ds = self.base_data.nu_d * (f / 1)**4
+            t_ds = sampled_t_ds * (f / 1)**1 * (np.abs(v) / 100)**(-1)
+            nu_ds = sampled_nu_ds * (f / 1)**4
         else:
-            t_ds = self.base_data.t_d * (f / 1)**1.2 * (np.abs(v) / 100)**(-1)
-            nu_ds = self.base_data.nu_d * (f / 1)**4.4
+            t_ds = sampled_t_ds * (f / 1)**1.2 * (np.abs(v) / 100)**(-1)
+            nu_ds = sampled_nu_ds * (f / 1)**4.4
         
         # return {
         #     't_d': t_ds,
@@ -247,10 +230,10 @@ class NESampler(object):
         #     'nu_d': nu_ds,
         #     'nu_sb': self.nu_sb(t_ds),
         # }
-        return SampledNEData(t_d=t_ds, nu_d=nu_ds)
+        return NEData(t_d=t_ds, nu_d=nu_ds)
     
     
-class SampledNEData(object):
+class NEData(object):
     def __init__(self, **kwargs):
         self.t_d = kwargs['t_d']
         self.nu_d = kwargs['nu_d']
@@ -337,5 +320,5 @@ class SampledNEData(object):
             plt.axvline(np.median(data)-median_absolute_deviation(data), ls=':', c='b')
             plt.axvline(np.median(data)+median_absolute_deviation(data), ls=':', c='b')
             plt.axvline(mode, ls='-', c='g')
-            plt.title(f'{np.median(data):.3} \u00B1 {median_absolute_deviation(data):.3} {self.units[quantity]} (std: {np.std(sigma_clip(sigma_clip(data, masked=False), masked=False)):.3})')
+            plt.title(f'{np.median(data):.3}({np.quantile(data, 0.25):.3}, {np.quantile(data, 0.75):.3}) {self.units[quantity]} (mode: {mode:.3} {self.units[quantity]})')
         plt.tight_layout()

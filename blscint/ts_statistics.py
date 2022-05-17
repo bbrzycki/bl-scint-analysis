@@ -37,7 +37,7 @@ def get_stats(ts):
     """
     stats = {}
     
-    stats['fchans'] = len(ts)
+    # stats['fchans'] = len(ts)
     stats['std'] = np.std(ts)
     stats['min'] = np.min(ts)
     stats['ks'] = scipy.stats.kstest(ts, 

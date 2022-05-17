@@ -72,6 +72,7 @@ def centered_frame(fn,
                       f_start=adj_center_freq - (fchans/2 + adj_fchans[0]) * df/1e6,
                       f_stop=adj_center_freq + (fchans/2 + adj_fchans[1]) * df/1e6)
     frame = stg.Frame(wf)
+    
     frame.add_metadata({
         'drift_rate': drift_rate,
         'center_freq': center_freq,
@@ -89,6 +90,9 @@ def turbo_centered_frame(i,
                        dt=9.305762474666658,
                        **kwargs):
     """
+    Create Frame centered at a target signal from a TurboSETI-created .dat file.
+    Does not remove drift -- use Frame.dedrift separately to do so.
+    
     i : signal index
     dataframe : pandas dataframe
     fn : data filename to actually grab the data
@@ -112,6 +116,7 @@ def turbo_centered_frame(i,
                       f_start=adj_center_freq - (fchans/2 + adj_fchans[0]) * df/1e6,
                       f_stop=adj_center_freq + (fchans/2 + adj_fchans[1]) * df/1e6)
     frame = stg.Frame(wf)
+        
     frame.add_metadata({
         'drift_rate': drift_rate,
         'center_freq': center_freq,

@@ -53,18 +53,22 @@ def query_ne2001(l, b, d, field=None):
     exec_path = os.path.join(current_path, 'NE2001/bin.NE2001/run_NE2001.pl')
     
     cwd = os.getcwd()
-    os.chdir(os.path.join(current_path, 'NE2001/bin.NE2001/'))
-    
-    if field is None:
-        field = 'ALL'
-    output = subprocess.run(['./run_NE2001.pl',
-                             str(l),
-                             str(b), 
-                             str(d), 
-                             '-1', 
-                             field],
-                            stdout=subprocess.PIPE).stdout.decode('utf-8')
-    os.chdir(cwd)
+    try:
+        os.chdir(os.path.join(current_path, 'NE2001/bin.NE2001/'))
+
+        if field is None:
+            field = 'ALL'
+        output = subprocess.run(['./run_NE2001.pl',
+                                 str(l),
+                                 str(b), 
+                                 str(d), 
+                                 '-1', 
+                                 field],
+                                stdout=subprocess.PIPE).stdout.decode('utf-8')
+    except:
+        pass
+    finally:
+        os.chdir(cwd)
     
     if field == 'ALL':
         print(output)

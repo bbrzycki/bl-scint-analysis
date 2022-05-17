@@ -10,3 +10,5 @@ from .sample_t_d import *
 from .ts_statistics import *
 from .gen_arta import *
 from .gen_pdf import *
+
+from .analyze_obs import *
