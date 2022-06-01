@@ -80,6 +80,32 @@ def run_turboseti(obs_fns, min_drift=0.00001, max_drift=5, snr=10, out_dir='.', 
     return turbo_dat_list
 
 
+def get_bbox_frame(index, df):
+    row = df.loc[index]
+    param_dict = dataframe.get_frame_params(row['fn'])
+    frame = dataframe.turbo_centered_frame(index, df, row['fn'], row['fchans'], **param_dict)
+    frame = stg.dedrift(frame)
+    return frame
+
+
+def empty_ts_stats(fchans):
+    ts_stats = {
+        'std': None,
+        'min': None,
+        'ks': None,
+        'anderson': None,
+        'lag1': None,
+        'lag2': None,
+        'fchans': fchans,
+        'l': None,
+        'r': None,
+        'acf_amp': None,
+        'acf_sigma': None,
+        'acf_noise': None,
+    }
+    return ts_stats
+
+
 def run_bbox_stats(turbo_dat_fns, data_dir='.', data_ext='.fil', data_res_ext='.0005', replace_existing=False):
     """
     Accept TurboSETI .dat files as input, return and save csv as output (via pandas).
@@ -122,28 +148,16 @@ def run_bbox_stats(turbo_dat_fns, data_dir='.', data_ext='.fil', data_res_ext='.
                     except IndexError:
                         # Broadband interferer
                         l, r, metadata = None, None, None
-                        ts_stats = {
-                            'std': None,
-                            'min': None,
-                            'ks': None,
-                            'lag1': None,
-                            'lag2': None,
-                            'fchans': fchans,
-                            'l': None,
-                            'r': None,
-                        }
+                        ts_stats = empty_ts_stats(fchans)
                         p.remove('polyfit')
                         break
-                        # frame.bl_plot()
-                        # plt.savefig('index_error_plot.pdf')
-                        # sys.exit(0)
 
                 # If IndexError... was probably not narrowband signal,
                 # so just skip adding it in
                 if l is not None:
                     try:
                         p.start('threshold_bounds')
-                        l, r, metadata = bounds.threshold_bounds(spec, half_width=3)
+                        l, r, metadata = bounds.threshold_baseline_bounds(spec)
                         # print(l,r)
                         p.stop('threshold_bounds')
 
@@ -161,21 +175,9 @@ def run_bbox_stats(turbo_dat_fns, data_dir='.', data_ext='.fil', data_res_ext='.
 
                     except IndexError:
                         p.remove('threshold_bounds')
-                        ts_stats = {
-                            'std': None,
-                            'min': None,
-                            'ks': None,
-                            'lag1': None,
-                            'lag2': None,
-                            'fchans': fchans,
-                            'l': None,
-                            'r': None,
-                        }
-                        # frame.bl_plot()
-                        # plt.savefig('index_error_plot_threshold.pdf')
-                        # sys.exit(0)
+                        ts_stats = empty_ts_stats(fchans)
                 for key in ts_stats:
-                    ts_stats_dict[key].append(ts_stats[key])
+                    ts_stats_dict[f"{key}"].append(ts_stats[key])
 
             # Set statistic columns
             for key in ts_stats_dict:
@@ -199,7 +201,7 @@ def plot_snapshot(index, df):
 
     spec = dd_frame.integrate()
 
-    l, r, metadata = bounds.threshold_bounds(spec, half_width=3)
+    l, r, metadata = bounds.threshold_baseline_bounds(spec)
 
     n_frame = frame_processing.t_norm_frame(dd_frame)
     tr_frame = n_frame.get_slice(l, r)
@@ -247,7 +249,7 @@ def plot_bounded_frame(index, df):
 
     spec = dd_frame.integrate()
 
-    l, r, metadata = bounds.threshold_bounds(spec, half_width=3)
+    l, r, metadata = bounds.threshold_baseline_bounds(spec)
 
     tr_frame = dd_frame.get_slice(l, r)
     tr_frame.plot()
@@ -286,7 +288,7 @@ def get_bbox_df(csv_fns):
     return data_df
         
         
-def plot_bbox_stats(csv_fns, plot_fn='bbox_stats.pdf'):
+def plot_bbox_stats(csv_fns, plot_fn_prefix='bbox_stats'):
     """
     Make stats plots with RFI and synthetic signals.
     """
@@ -311,15 +313,15 @@ def plot_bbox_stats(csv_fns, plot_fn='bbox_stats.pdf'):
         ts_stats_dict = collections.defaultdict(list)
 
         for _ in range(n_samples):
-            ts = gen_arta.get_ts_arta(t_d, sample_frame.dt, sample_frame.tchans, p=16)
+            ts = gen_arta.get_ts_arta(t_d, sample_frame.dt, sample_frame.tchans, p=32)
             frame = stg.Frame(**sample_frame.get_params())
             frame.add_noise_from_obs()
             signal = frame.add_signal(stg.constant_path(f_start=frame.get_frequency(128), 
                                                         drift_rate=0),
-                                      ts * frame.get_intensity(snr=25),
+                                      ts * frame.get_intensity(snr=10),
                                       stg.sinc2_f_profile(width=3*frame.df*u.Hz),
                                       stg.constant_bp_profile(level=1))
-            l, r, _ = bounds.threshold_bounds(frame.integrate())
+            l, r, _ = bounds.threshold_baseline_bounds(frame.integrate())
 
             n_frame = frame_processing.t_norm_frame(frame)
             tr_frame = n_frame.get_slice(l, r)
@@ -330,7 +332,7 @@ def plot_bbox_stats(csv_fns, plot_fn='bbox_stats.pdf'):
             ts_stats = ts_statistics.get_stats(tr_ts)
 
             for key in ts_stats:
-                ts_stats_dict[key].append(ts_stats[key])
+                ts_stats_dict[f"{key}"].append(ts_stats[key])
 
         synth_stats_dicts[t_d] = ts_stats_dict
         p.stop('synthesize_bbox')
@@ -344,6 +346,7 @@ def plot_bbox_stats(csv_fns, plot_fn='bbox_stats.pdf'):
     fig, axs = plt.subplots(1, len(keys), figsize=(20, 4), sharex='col')
 
     for j, key in enumerate(keys):
+        key = f"{key}"
         bins=np.histogram(np.hstack([synth_stats_dicts[t_d][key] for t_d in t_ds] + [data_df[key]]), bins=40)[1]
         for i, t_d in enumerate(t_ds):
             axs[j].hist(synth_stats_dicts[t_d][key], bins=bins, histtype='step', label=f'{t_d} s')
@@ -354,5 +357,4 @@ def plot_bbox_stats(csv_fns, plot_fn='bbox_stats.pdf'):
         axs[j].hist(data_df[key], bins=bins, histtype='step', color='k', lw=2, label='Non-DC RFI')
         axs[j].set_title(f'{key.upper()}')
         axs[j].legend(loc=[1, 1, 1, 2][j])
-    plt.savefig(plot_fn, bbox_inches='tight')
-    p.report()
+    plt.savefig(f"{plot_fn_prefix}.pdf", bbox_inches='tight')

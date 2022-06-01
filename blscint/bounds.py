@@ -58,17 +58,16 @@ def polyfit_bounds(spec, deg=1, snr_threshold=10):
 
     # Estimate noise std (with background fit subtraction)
     std = np.std(y[~y.mask] - poly(x[~y.mask]))
-
     # Get peaks above SNR threshold
     peaks = scipy.signal.find_peaks(spec - poly(x), prominence=snr_threshold * std)
     if len(peaks[0]) == 0:
         raise ValueError('No peaks found! Signal may be absent, too dim, or too wide')
-    
+  
     # Find highest peak
     i = np.argmax(peaks[1]['prominences'])
     peak_i = peaks[0][i]
     
-    cutoffs = np.where(spec - poly(x) <= 0)[0]\
+    cutoffs = np.where(spec - poly(x) <= 0)[0]
     
     i = np.digitize(peak_i, cutoffs) - 1
     # print(i, i+1, len(cutoffs), len(spec), cutoffs[-1])
@@ -110,6 +109,35 @@ def threshold_bounds(spec, half_width=3):
     
     threshold = stg.func_utils.gaussian(half_width, 0, 1)
     cutoffs = np.where(norm_spec < threshold)[0]
+    
+    peak = np.argmax(norm_spec)
+    i = np.digitize(peak, cutoffs) - 1
+    # print(i, i+1, len(cutoffs), len(spec), cutoffs[-1])
+    l, r = cutoffs[i] + 1, cutoffs[i + 1]
+    
+    metadata = {
+        'noise_mean': np.mean(noise_spec),
+        'spec_max': np.max(spec)
+    }
+    return l, r, metadata
+
+
+def threshold_baseline_bounds(spec, p=0.01):
+    """
+    Threshold with baseline modeled.
+    """
+    noise_spec = sigma_clip(spec, masked=True)
+    x = np.arange(len(spec))
+
+    # Linear baseline
+    deg = 1
+    coeffs = np.polyfit(x[~noise_spec.mask], noise_spec[~noise_spec.mask], deg)
+    poly = np.poly1d(coeffs)
+    
+    spec = spec - poly(x)
+    norm_spec = (spec ) / (np.max(spec) )
+    
+    cutoffs = np.where(norm_spec < p)[0]
     
     peak = np.argmax(norm_spec)
     i = np.digitize(peak, cutoffs) - 1

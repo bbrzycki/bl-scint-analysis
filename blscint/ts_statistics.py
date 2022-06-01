@@ -41,11 +41,23 @@ def get_stats(ts):
     stats['std'] = np.std(ts)
     stats['min'] = np.min(ts)
     stats['ks'] = scipy.stats.kstest(ts, 
-                                     scipy.stats.expon.cdf)[0]
+                                     'expon')[0]
+    stats['anderson'] = scipy.stats.anderson(ts,
+                                             'expon')[0]
 
     ac = autocorr(ts)
     stats['lag1'] = ac[1]
     stats['lag2'] = ac[2]
+    
+    try:
+        popt = fit_acf(ac)
+        popt[1] = np.abs(popt[1])
+    except RuntimeError:
+        popt = [None, None, None]
+    stats['acf_amp'] = popt[0]
+    stats['acf_sigma'] = popt[1]
+    stats['acf_noise'] = popt[2]
+    
     return stats
 
 
