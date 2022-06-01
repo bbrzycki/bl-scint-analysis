@@ -130,7 +130,7 @@ class NESampler(object):
             for i in tqdm.tqdm(range(self.d.size)):
                 raw_t_ds[i] = ne2001.query_ne2001(l, b, self.d[i], field='SCINTIME').value
                 raw_nu_ds[i] = ne2001.query_ne2001(l, b, self.d[i], field='SBW').to(u.Hz).value
-        except TypeError:
+        except (TypeError, IndexError):
             self.d = d
             raw_t_ds = ne2001.query_ne2001(l, b, d, field='SCINTIME').value
             raw_nu_ds = ne2001.query_ne2001(l, b, d, field='SBW').to(u.Hz).value
@@ -207,12 +207,12 @@ class NESampler(object):
         
         try:
             f = np.random.uniform(f[0], f[1], n)
-        except TypeError:
+        except (TypeError, IndexError):
             f = np.repeat(f, n)
 
         try:
             v = np.random.uniform(v[0], v[1], n)
-        except TypeError:
+        except (TypeError, IndexError):
             v = np.repeat(v, n)
             
         # Scintillation timescale scaling    
@@ -294,7 +294,7 @@ class NEData(object):
             print(f"IQ: {np.quantile(data, 0.25):.3} {self.units[quantity]} -- {np.quantile(data, 0.75):.3} {self.units[quantity]}")
             print("-"*10)
             
-    def plot(self):
+    def diagnostic_plot(self):
         fig, axs = plt.subplots(2, 2, figsize=(10, 6))
         for quantity in self.data_dict:
             if quantity == 't_d':
@@ -321,4 +321,31 @@ class NEData(object):
             plt.axvline(np.median(data)+median_absolute_deviation(data), ls=':', c='b')
             plt.axvline(mode, ls='-', c='g')
             plt.title(f'{np.median(data):.3}({np.quantile(data, 0.25):.3}, {np.quantile(data, 0.75):.3}) {self.units[quantity]} (mode: {mode:.3} {self.units[quantity]})')
+        plt.tight_layout()
+            
+    def plot(self):
+        fig, axs = plt.subplots(2, 2, figsize=(10, 6))
+        for quantity in self.data_dict:
+            if quantity == 't_d':
+                plt.sca(axs[0, 0])
+            if quantity == 'nu_sb':
+                plt.sca(axs[0, 1])
+            if quantity == 'nu_d':
+                plt.sca(axs[1, 0])
+            if quantity == 'tau_d':
+                plt.sca(axs[1, 1])
+            data = self.data_dict[quantity]
+            clipped_data = sigma_clip(data, maxiters=10, masked=False)
+            vals, bins = np.histogram(clipped_data, bins=25)
+            mode_idx = np.argmax(vals)
+            mode = (bins[mode_idx] + bins[mode_idx + 1]) / 2
+            
+            plt.hist(data, bins=bins, histtype='step', color='k')
+            plt.xlabel(f'{self.labels[quantity]} ({self.units[quantity]})')
+            plt.ylabel('Counts')
+            
+            plt.axvline(np.median(data), ls='--', c='k')
+            plt.axvline(np.quantile(data, 0.25), ls=':', c='k')
+            plt.axvline(np.quantile(data, 0.75), ls=':', c='k')
+            # plt.title(f'{np.median(data):.3}({np.quantile(data, 0.25):.3}, {np.quantile(data, 0.75):.3}) {self.units[quantity]} (mode: {mode:.3} {self.units[quantity]})')
         plt.tight_layout()

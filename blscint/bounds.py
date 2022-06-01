@@ -71,6 +71,7 @@ def polyfit_bounds(spec, deg=1, snr_threshold=10):
     cutoffs = np.where(spec - poly(x) <= 0)[0]\
     
     i = np.digitize(peak_i, cutoffs) - 1
+    # print(i, i+1, len(cutoffs), len(spec), cutoffs[-1])
     l, r = cutoffs[i] + 1, cutoffs[i + 1]
     
     metadata = {
@@ -112,6 +113,7 @@ def threshold_bounds(spec, half_width=3):
     
     peak = np.argmax(norm_spec)
     i = np.digitize(peak, cutoffs) - 1
+    # print(i, i+1, len(cutoffs), len(spec), cutoffs[-1])
     l, r = cutoffs[i] + 1, cutoffs[i + 1]
     
     metadata = {
