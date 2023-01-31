@@ -29,10 +29,9 @@ setuptools.setup(
        'seaborn>=0.11.2',
        'pandas>=1.3.5',
        'tqdm>=4.47.0',
-       'sphinx-rtd-theme>=0.4.3'
+       'sphinx-rtd-theme>=0.4.3',
+       'sphinx-theme==1.0',
     ],
-#     dependency_links=['https://github.com/h5py/h5py',
-#                       'https://github.com/kiyo-masui/bitshuffle'],
     classifiers=(
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: MIT License',
