@@ -46,6 +46,14 @@ def mcmillan_rho_tot(R, z):
     return mcmillan_rho_bulge(R, z) + mcmillan_rho_thin(R, z) + mcmillan_rho_thick(R, z)
 
 
+def carroll_ostlie_n(R, z):
+    n0 = 5.502 # Normalization, stars / pc^-3
+    Z_thin = 0.350
+    Z_thick = 1.
+    hR = 2.25
+    return n0 * (np.exp(-z / Z_thin) + 0.085 * np.exp(-z / Z_thick)) * np.exp(-R / hR)
+
+
 def coverage(t_ds, start=None, stop=None):
     """
     Get fractional coverage of scintillation timescales for a specified range.
@@ -110,20 +118,14 @@ class NESampler(object):
     """
     def __init__(self, l, b, 
                  d=(0.01, 20),
-                 delta_d=0.01,
-                 galcen_distance=8.21):
+                 delta_d=0.01):
         self.l, self.b = l, b
         self.delta_d = delta_d
         
         try:
             # Sample by density
             self.d = np.arange(d[0], d[1] + delta_d / 2, delta_d)
-            cs = coord.SkyCoord(l=l*u.deg, b=b*u.deg,
-                                distance=self.d*u.kpc,
-                                frame='galactic')
-            gcs = cs.transform_to(coord.Galactocentric(galcen_distance=galcen_distance*u.kpc)) 
-            gcs.representation_type = 'cylindrical'
-            self.d_rel_prob = mcmillan_rho_tot(gcs.rho.to(u.kpc).value, gcs.z.to(u.kpc).value)
+            
             
             raw_t_ds = np.empty(self.d.size)
             raw_nu_ds = np.empty(self.d.size)
@@ -170,9 +172,14 @@ class NESampler(object):
         return C2 / (2 * np.pi * t_d)
     
     def sample(self, n=1000, f=(4, 8), v=(5, 100), d=None, 
-               d_sampling_type='density', scint_regime='moderate', verbose=True):
+               d_sampling_type='mcmillan', 
+               galcen_distance=8.5,
+               scint_regime='moderate', verbose=True,):
         """
         Sample frequencies, transverse velocities, and scale base model values appropriately.
+        
+        Sampling type can be: 'uniform', 'mcmillan', 'carrollostlie'.
+        McMillan model uses 8.21 kpc to the galactic center, but NE2001 uses 8.5 kpc. 
         """
         min_d = min_d_ss(self.l, self.b, d=(1e-3, 20), f=f, delta_d=self.delta_d)
         if min_d is None:
@@ -192,15 +199,30 @@ class NESampler(object):
             if d is None:
                 d_idx = d_idx[(self.d >= min_d)]
             else:
-                d_idx = d_idx[(self.d >= np.max(d[0], min_d)) & (self.d <= d[1])]
+                d_idx = d_idx[(self.d >= np.max([d[0], min_d])) & (self.d <= d[1])]
                 
-            if d_sampling_type == 'density':
-                # d = self.d[d_idx]
-                # print(self.d_rel_prob.shape, d_idx.shape)
-                d_prob = self.d_rel_prob[d_idx] / np.sum(self.d_rel_prob[d_idx])
-                sampled_idx = np.random.choice(d_idx, size=n, p=d_prob)
-            else:
+            # Transform to galactocentric coordinates to use stellar density models
+            cs = coord.SkyCoord(l=self.l*u.deg, b=self.b*u.deg,
+                                distance=self.d[d_idx]*u.kpc,
+                                frame='galactic')
+            gcs = cs.transform_to(coord.Galactocentric(galcen_distance=galcen_distance*u.kpc)) 
+            gcs.representation_type = 'cylindrical'
+            if d_sampling_type == 'uniform':
                 sampled_idx = np.random.choice(d_idx, size=n)
+            else:
+                if d_sampling_type == 'mcmillan':
+                    d_rel_prob = mcmillan_rho_tot(gcs.rho.to(u.kpc).value,
+                                                       gcs.z.to(u.kpc).value)
+                else:
+                    # For Carroll & Ostlie 2007
+                    print('hi')
+                    d_rel_prob = carroll_ostlie_n(gcs.rho.to(u.kpc).value,
+                                                       gcs.z.to(u.kpc).value)
+                 
+                d_prob = d_rel_prob / np.sum(d_rel_prob)
+                
+                sampled_idx = np.random.choice(d_idx, size=n, p=d_prob)
+                 
             sampled_t_ds = self.raw_data.t_d[sampled_idx]
             sampled_nu_ds = self.raw_data.nu_d[sampled_idx]
             sampled_ds = self.d[sampled_idx]
@@ -334,6 +356,7 @@ class NEData(object):
                 plt.sca(axs[1, 0])
             if quantity == 'tau_d':
                 plt.sca(axs[1, 1])
+            
             data = self.data_dict[quantity]
             clipped_data = sigma_clip(data, maxiters=10, masked=False)
             vals, bins = np.histogram(clipped_data, bins=25)
@@ -341,6 +364,7 @@ class NEData(object):
             mode = (bins[mode_idx] + bins[mode_idx + 1]) / 2
             
             plt.hist(data, bins=bins, histtype='step', color='k')
+            
             plt.xlabel(f'{self.labels[quantity]} ({self.units[quantity]})')
             plt.ylabel('Counts')
             
@@ -349,3 +373,21 @@ class NEData(object):
             plt.axvline(np.quantile(data, 0.75), ls=':', c='k')
             # plt.title(f'{np.median(data):.3}({np.quantile(data, 0.25):.3}, {np.quantile(data, 0.75):.3}) {self.units[quantity]} (mode: {mode:.3} {self.units[quantity]})')
         plt.tight_layout()
+            
+    def plot_t_d(self):
+        quantity = 't_d'
+        data = self.data_dict[quantity]
+        clipped_data = sigma_clip(data, maxiters=10, masked=False)
+        vals, bins = np.histogram(clipped_data, bins=25)
+        mode_idx = np.argmax(vals)
+        mode = (bins[mode_idx] + bins[mode_idx + 1]) / 2
+
+        plt.hist(data, bins=bins, histtype='step', color='k')
+        plt.xlabel(f'{self.labels[quantity]} ({self.units[quantity]})')
+        plt.ylabel('Counts')
+
+        plt.axvline(np.median(data), ls='--', c='k')
+        plt.axvline(np.quantile(data, 0.25), ls=':', c='k')
+        plt.axvline(np.quantile(data, 0.75), ls=':', c='k')
+        plt.tight_layout()
+        

@@ -151,6 +151,31 @@ def threshold_baseline_bounds(spec, p=0.01):
     return l, r, metadata
 
 
+def snr_bounds(spec, snr=5):
+    peak = np.argmax(spec)
+    
+    y = sigma_clip(spec)
+    x = np.arange(len(spec))
+
+    coeffs = np.polyfit(x[~y.mask], y[~y.mask], 1)
+    poly = np.poly1d(coeffs)
+
+    # Estimate noise std (with background fit subtraction)
+    std = np.std(y[~y.mask] - poly(x[~y.mask]))
+    # std = np.std(y)
+    
+    _, _, [l], [r] = scipy.signal.peak_widths(spec, 
+                                              [peak], 
+                                              1 - (snr * std) / np.max(spec))
+    metadata = {
+        'std': std,
+        'spec_max': np.max(spec)
+    }
+    l = int(np.floor(l)) + 1
+    r = int(np.ceil(r))
+    return l, r, metadata
+
+
 def gaussian_bounds(spec, half_width=3, peak_guess=None):
     """
     Create bounds based on a Gaussian fit to the central peak.

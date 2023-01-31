@@ -24,15 +24,16 @@ from . import factors
 from . import ts_statistics
 
 
-def get_rho(t_d, dt, p):
+def get_rho(t_d, dt, p, pow=5/3):
     """
     Get target autocorrelations with time array ts and scintillation
     timescale t_d, up to lag p. Modeled as Gaussian according to t_d. 
     """
     # Calculate sigma from width
-    r = stg.func_utils.gaussian(np.arange(1, p + 1),
-                                0, 
-                                t_d / dt / factors.hwem_m)
+    # r = stg.func_utils.gaussian(np.arange(1, p + 1),
+    #                             0, 
+    #                             t_d / dt / factors.hwem_m)
+    r = ts_statistics.scint_acf(np.arange(1, p + 1), t_d / dt, pow=pow)
     return r
 
 
@@ -114,11 +115,11 @@ def get_Y(Z):
     return Y / np.mean(Y)
 
 
-def get_ts_arta(t_d, dt, num_samples, p=2):
+def get_ts_arta(t_d, dt, num_samples, p=2, pow=5/3):
     """
     Produce time series data via an ARTA process. 
     """
-    rho = get_rho(t_d, dt, p)
+    rho = get_rho(t_d, dt, p, pow)
     Z = build_Z(rho, num_samples)
     Y = get_Y(Z)
     return Y

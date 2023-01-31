@@ -6,7 +6,7 @@ import setigen as stg
 from . import factors
 
 
-def t_norm_frame(frame, as_data=None):
+def t_norm_frame(frame, as_data=None, divide=False):
     """
     "Normalize" frame by subtracting out noise background, along time axis.
     """
@@ -18,6 +18,8 @@ def t_norm_frame(frame, as_data=None):
     clipped_data = sigma_clip(data, axis=1, masked=True)
     n_frame = frame.copy()
     n_frame.data = (frame.data - np.mean(clipped_data, axis=1, keepdims=True))
+    if divide:
+        n_frame.data = n_frame.data / np.std(clipped_data, axis=1, keepdims=True)
     return n_frame
 
 

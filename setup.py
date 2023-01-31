@@ -27,7 +27,7 @@ setuptools.setup(
        'galpy>=1.7.2',
        'matplotlib>=3.1.3',
        'seaborn>=0.11.2',
-       'pandas>=1.4.2',
+       'pandas',
        'tqdm>=4.47.0',
        'sphinx-rtd-theme>=0.4.3'
     ],

@@ -99,14 +99,24 @@ def empty_ts_stats(fchans):
         'fchans': fchans,
         'l': None,
         'r': None,
-        'acf_amp': None,
-        'acf_sigma': None,
-        'acf_noise': None,
+        # 'acf_t_d': None,
+        # 'acf_A': None,
+        # 'acf_W': None,
     }
+    for label, pow in [('sq', 2), ('k', 5/3)]:
+        for use_triangle in [True, False]:
+            ts_stats[f'acf_t_d.{label}.{use_triangle}'] = None
+            ts_stats[f'acf_A.{label}.{use_triangle}'] = None
+            ts_stats[f'acf_W.{label}.{use_triangle}'] = None
     return ts_stats
 
 
-def run_bbox_stats(turbo_dat_fns, data_dir='.', data_ext='.fil', data_res_ext='.0005', replace_existing=False):
+def run_bbox_stats(turbo_dat_fns, 
+                   data_dir='.', 
+                   data_ext='.fil', 
+                   data_res_ext='.0005', 
+                   replace_existing=False,
+                   bound_type='threshold'):
     """
     Accept TurboSETI .dat files as input, return and save csv as output (via pandas).
     Boundary box statistics.
@@ -116,7 +126,7 @@ def run_bbox_stats(turbo_dat_fns, data_dir='.', data_ext='.fil', data_res_ext='.
     for turbo_dat_fn in as_file_list(turbo_dat_fns):
         print(f"Working on {turbo_dat_fn}")
         data_fn = f"{data_dir}/{os.path.splitext(os.path.basename(turbo_dat_fn))[0][:-5]}{data_res_ext}{data_ext}"
-        csv_fn = f"{os.path.splitext(turbo_dat_fn)[0][:-5]}{data_res_ext}_bbox.csv"
+        csv_fn = f"{os.path.splitext(turbo_dat_fn)[0][:-5]}{data_res_ext}_bbox_{bound_type}.csv"
         
         # Skip if csv already exists
         if not os.path.exists(csv_fn) or replace_existing:
@@ -156,10 +166,13 @@ def run_bbox_stats(turbo_dat_fns, data_dir='.', data_ext='.fil', data_res_ext='.
                 # so just skip adding it in
                 if l is not None:
                     try:
-                        p.start('threshold_bounds')
-                        l, r, metadata = bounds.threshold_baseline_bounds(spec)
+                        p.start('bounds')
+                        if bound_type == 'snr':
+                            l, r, metadata = bounds.snr_bounds(spec, snr=5)
+                        else:
+                            l, r, metadata = bounds.threshold_baseline_bounds(spec)
                         # print(l,r)
-                        p.stop('threshold_bounds')
+                        p.stop('bounds')
 
                         n_frame = frame_processing.t_norm_frame(frame)
                         tr_frame = n_frame.get_slice(l, r)
@@ -174,7 +187,7 @@ def run_bbox_stats(turbo_dat_fns, data_dir='.', data_ext='.fil', data_res_ext='.
                         ts_stats['r'] = r
 
                     except IndexError:
-                        p.remove('threshold_bounds')
+                        p.remove('bounds')
                         ts_stats = empty_ts_stats(fchans)
                 for key in ts_stats:
                     ts_stats_dict[f"{key}"].append(ts_stats[key])
@@ -230,12 +243,16 @@ def plot_snapshot(index, df):
     plt.plot(ts, c='k')
     plt.axhline(0, ls='--')
     plt.axhline(1, ls='-')
+    plt.xlabel('Time sample')
+    plt.ylabel('Normalized Intensity')
     plt.title('Time series')
     
     plt.subplot(1, 4, 4)
     acf = ts_statistics.autocorr(ts)
     plt.plot(acf, c='k')
     plt.axhline(0, ls='--')
+    plt.xlabel('Lag')
+    plt.ylabel('Autocorrelation')
     plt.title(f"ACF: ks={row['ks']:.3}")
     plt.show()
     
@@ -288,7 +305,11 @@ def get_bbox_df(csv_fns):
     return data_df
         
         
-def plot_bbox_stats(csv_fns, plot_fn_prefix='bbox_stats'):
+def plot_bbox_stats(csv_fns, 
+                    pow=5/3, 
+                    use_triangle=True, 
+                    bound_type='threshold', 
+                    plot_fn_prefix='bbox_stats'):
     """
     Make stats plots with RFI and synthetic signals.
     """
@@ -313,7 +334,7 @@ def plot_bbox_stats(csv_fns, plot_fn_prefix='bbox_stats'):
         ts_stats_dict = collections.defaultdict(list)
 
         for _ in range(n_samples):
-            ts = gen_arta.get_ts_arta(t_d, sample_frame.dt, sample_frame.tchans, p=32)
+            ts = gen_arta.get_ts_arta(t_d, sample_frame.dt, sample_frame.tchans, p=32, pow=pow)
             frame = stg.Frame(**sample_frame.get_params())
             frame.add_noise_from_obs()
             signal = frame.add_signal(stg.constant_path(f_start=frame.get_frequency(128), 
@@ -321,7 +342,11 @@ def plot_bbox_stats(csv_fns, plot_fn_prefix='bbox_stats'):
                                       ts * frame.get_intensity(snr=10),
                                       stg.sinc2_f_profile(width=3*frame.df*u.Hz),
                                       stg.constant_bp_profile(level=1))
-            l, r, _ = bounds.threshold_baseline_bounds(frame.integrate())
+             
+            if bound_type == 'snr':
+                l, r, _ = bounds.snr_bounds(frame.integrate())
+            else:
+                l, r, _ = bounds.threshold_baseline_bounds(frame.integrate())
 
             n_frame = frame_processing.t_norm_frame(frame)
             tr_frame = n_frame.get_slice(l, r)
@@ -339,11 +364,15 @@ def plot_bbox_stats(csv_fns, plot_fn_prefix='bbox_stats'):
     
     
     
-    
-    keys = ['std', 'min', 'ks', 'lag1']
+    if pow == 2:
+        label = 'sq'
+    else:
+        label = 'k'
+    keys = ['std', 'min', 'ks', f'acf_t_d.{label}.{use_triangle}']
     t_ds = [10, 30, 100]
+    titles = ['Standard Deviation', 'Minimum', 'Kolmogorov-Smirnoff Statistic', 'Scintillation Timescale Fit (s)']
 
-    fig, axs = plt.subplots(1, len(keys), figsize=(20, 4), sharex='col')
+    fig, axs = plt.subplots(1, len(keys), figsize=(20, 4), sharey='col')
 
     for j, key in enumerate(keys):
         key = f"{key}"
@@ -356,5 +385,5 @@ def plot_bbox_stats(csv_fns, plot_fn_prefix='bbox_stats'):
 
         axs[j].hist(data_df[key], bins=bins, histtype='step', color='k', lw=2, label='Non-DC RFI')
         axs[j].set_title(f'{key.upper()}')
-        axs[j].legend(loc=[1, 1, 1, 2][j])
+        # axs[j].legend(loc=[1, 1, 1, 2][j])
     plt.savefig(f"{plot_fn_prefix}.pdf", bbox_inches='tight')

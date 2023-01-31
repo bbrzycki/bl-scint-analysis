@@ -40,42 +40,80 @@ def get_stats(ts):
     # stats['fchans'] = len(ts)
     stats['std'] = np.std(ts)
     stats['min'] = np.min(ts)
-    stats['ks'] = scipy.stats.kstest(ts, 
-                                     'expon')[0]
-    stats['anderson'] = scipy.stats.anderson(ts,
-                                             'expon')[0]
+    
+    relu_ts = np.where(ts >= 0, ts, 1e-3)
+    stats['ks'] = scipy.stats.kstest(relu_ts, 
+                                     'expon').statistic
+    stats['anderson'] = scipy.stats.anderson(relu_ts,
+                                             'expon').statistic
 
     ac = autocorr(ts)
     stats['lag1'] = ac[1]
     stats['lag2'] = ac[2]
     
-    try:
-        popt = fit_acf(ac)
-        popt[1] = np.abs(popt[1])
-    except RuntimeError:
-        popt = [None, None, None]
-    stats['acf_amp'] = popt[0]
-    stats['acf_sigma'] = popt[1]
-    stats['acf_noise'] = popt[2]
+    for label, pow in [('sq', 2), ('k', 5/3)]:
+        for use_triangle in [True, False]:
+            try:
+                popt = fit_acf(ac, pow=pow, use_triangle=use_triangle)
+            except RuntimeError:
+                popt = [None, None, None]
+            stats[f'acf_t_d.{label}.{use_triangle}'] = popt[0]
+            stats[f'acf_A.{label}.{use_triangle}'] = popt[1]
+            stats[f'acf_W.{label}.{use_triangle}'] = popt[2]
     
     return stats
 
 
-def acf_func(x, A, sigma, Y=0):
-    return A * stg.func_utils.gaussian(x, 0, sigma) + Y * scipy.signal.unit_impulse(len(x))
-    
-    
-def fit_acf(acf, remove_spike=False):
-    if remove_spike:
-        t_acf_func = lambda x, sigma: acf_func(x, 1, sigma, 0)
+def triangle(x, L):
+    y = 1 - np.abs(x) / L
+    return np.where(np.abs(x) <= L, y, 0)
+
+
+def scint_acf(x, t_d, pow=2):
+    """
+    pow is 2 for square-law; 5/3 for Kolmogorov.
+    """
+    return np.exp(-(np.abs(x / t_d))**pow)
+
+def noisy_scint_acf(x, t_d, A, W, pow=2, use_triangle=True):
+    """
+    pow is 2 for square-law; 5/3 for Kolmogorov.
+    use_triangle weights the acf model by the triangular function for the acf calculation.
+    """
+    if use_triangle:
+        factor = triangle(x, len(x) * (x[1] - x[0]))
     else:
-        t_acf_func = acf_func
+        factor = 1
+    return A * scint_acf(x, t_d, pow=pow) * factor + W * scipy.signal.unit_impulse(len(x))
+
+def noisy_scint_acf_gen(pow=2, use_triangle=True):
+    """
+    pow is 2 for square-law; 5/3 for Kolmogorov.
+    """
+    return lambda x, t_d, A, W: noisy_scint_acf(x, t_d, A, W, pow=pow, use_triangle=use_triangle)
+
+# def acf_func(x, A, sigma, Y=0):
+#     return A * stg.func_utils.gaussian(x, 0, sigma) + Y * scipy.signal.unit_impulse(len(x))
+    
+    
+def fit_acf(acf, pow=2, use_triangle=True, remove_spike=False):
+    """
+    Routine to fit ideal ACF shapes to empirical autocorrelations. 
+    pow is 2 for square-law; 5/3 for Kolmogorov.
+    """
+    if remove_spike:
+        # t_acf_func = lambda x, sigma: acf_func(x, 1, sigma, 0)
+        t_acf_func = lambda x, t_d: noisy_scint_acf_gen(pow=pow, use_triangle=use_triangle)(x, t_d, 1, 0)
+    else:
+        # t_acf_func = acf_func
+        t_acf_func = noisy_scint_acf_gen(pow=pow, use_triangle=use_triangle)
     popt, a = optimize.curve_fit(t_acf_func, 
                                  np.arange(len(acf)),
-                                 acf,)
+                                 acf,
+                                 bounds=([0, 0, 0], [len(acf), 1, 1]))
 #     print(a)
     if remove_spike:
-        return [1, popt[0], 0]
+        return [popt[0], 1, 0]
     else:
         return popt
     
