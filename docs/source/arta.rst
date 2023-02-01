@@ -1,0 +1,2 @@
+Synthetic scintillated intensities
+==================================

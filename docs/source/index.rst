@@ -7,10 +7,13 @@ Welcome to blscint's documentation!
 ===================================
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
-
+   :maxdepth: 1
+   
+   install
+   ne2001
+   arta
+   extraction
+   presenting
 
 Indices and tables
 ==================
