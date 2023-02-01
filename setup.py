@@ -11,10 +11,10 @@ setuptools.setup(
     description='SETI scintillation utilities',
     long_description=long_description,
     long_description_content_type='text/markdown',
-#     url='https://github.com/bbrzycki/setigen',
+#     url='https://github.com/bbrzycki/blscint',
 #     project_urls={
-#         'Documentation': 'https://setigen.readthedocs.io/en/latest/',
-#         'Source': 'https://github.com/bbrzycki/setigen'
+#         'Documentation': 'https://blscint.readthedocs.io/en/latest/',
+#         'Source': 'https://github.com/bbrzycki/blscint'
 #     },
     packages=setuptools.find_packages(),
     include_package_data=True,
