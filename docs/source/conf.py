@@ -72,6 +72,8 @@ master_doc = 'index'
 # Order of docstrings; by source or alphabetical.
 autodoc_member_order = 'bysource'
 
+autodoc_mock_imports = ["turbo_seti"]
+
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 

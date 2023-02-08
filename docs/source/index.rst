@@ -14,6 +14,7 @@ Welcome to blscint's documentation!
    arta
    extraction
    presenting
+   blscint
 
 Indices and tables
 ==================
