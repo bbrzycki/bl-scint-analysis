@@ -26,8 +26,25 @@ from . import ts_statistics
 
 def get_rho(t_d, dt, p, pow=5/3):
     """
-    Get target autocorrelations with time array ts and scintillation
-    timescale t_d, up to lag p. Modeled as Gaussian according to t_d. 
+    Get target autocorrelation guesses for ARTA with scintillation
+    timescale t_d and time resolution dt, up to lag p. 
+    Modeled as a power law with exponent 5/3 or 2. 
+
+    Parameters
+    ----------
+    t_d : float
+        Scintillation timescale (s)
+    dt : float
+        Time resolution (s)
+    p : int
+        Number of lags to calculate
+    pow : float, optional
+        Exponent for ACF fit, either 5/3 or 2 (arising from phase structure function) 
+
+    Returns
+    -------
+    r : np.ndarray
+        Array of autocorrelations, starting with lag 1
     """
     # Calculate sigma from width
     # r = stg.func_utils.gaussian(np.arange(1, p + 1),
@@ -53,6 +70,16 @@ def get_rho(t_d, dt, p, pow=5/3):
 def psi(r):
     """
     Return covariance matrix for initial multivariate normal distribution.
+
+    Parameters
+    ----------
+    r : np.ndarray
+        Array of autocorrelation guesses, starting with lag 1
+
+    Returns
+    -------
+    cov_mat : np.ndarray
+        Covariance matrix
     """
     return scipy.linalg.toeplitz(np.concatenate([[1.], r[:-1]]))
 
@@ -60,6 +87,18 @@ def psi(r):
 def build_Z(r, T):
     """
     Build full baseline Z array.
+
+    Parameters
+    ----------
+    r : np.ndarray
+        Array of autocorrelation guesses, starting with lag 1
+    T : int
+        Final length of array Z, should be greater than p
+
+    Returns
+    -------
+    Z : np.ndarray
+        Array of Z values, as in ARTA
     """
     # T is final length of array Z, should be greater than p
     # r is the array of guesses to get close to desired autocorrelations
@@ -102,6 +141,18 @@ def build_Z(r, T):
 def inv_exp_cdf(x, rate=1):
     """
     Inverse exponential distribution CDF.
+
+    Parameters
+    ----------
+    x : float, np.ndarray
+        Input value(s) from [0, 1)
+    rate : float
+        Rate parameter lambda
+
+    Returns
+    -------
+    v : float, np.ndarray
+        Output of inverse CDF
     """
     return -np.log(1. - x) / rate
 
@@ -110,6 +161,16 @@ def get_Y(Z):
     """
     Get final values specific to an overall exponential distribution,
     normalized to mean of 1.
+
+    Parameters
+    ----------
+    Z : np.ndarray
+        Array of Z values, as in ARTA
+
+    Returns
+    -------
+    Y : np.ndarray
+        Final synthetic scintillated time series (Y values)
     """
     Y = inv_exp_cdf(norm.cdf(Z))
     return Y / np.mean(Y)
@@ -118,6 +179,24 @@ def get_Y(Z):
 def get_ts_arta(t_d, dt, num_samples, p=2, pow=5/3):
     """
     Produce time series data via an ARTA process. 
+
+    Parameters
+    ----------
+    t_d : float
+        Scintillation timescale (s)
+    dt : float
+        Time resolution (s)
+    num_samples : int
+        Number of synthetic samples to produce
+    p : int, optional
+        Number of lags to calculate
+    pow : float, optional
+        Exponent for ACF fit, either 5/3 or 2 (arising from phase structure function) 
+
+    Returns
+    -------
+    Y : np.ndarray
+        Final synthetic scintillated time series (Y values)
     """
     rho = get_rho(t_d, dt, p, pow)
     Z = build_Z(rho, num_samples)

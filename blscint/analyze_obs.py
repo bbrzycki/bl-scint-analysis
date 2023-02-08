@@ -28,6 +28,21 @@ def as_file_list(fns, node_excludes=[], str_excludes=[]):
     """
     Expand files, using glob pattern matching, into a full list.
     In addition, user can specify strings to exclude in any filenames.
+    
+    Parameters
+    ----------
+    fns : list
+        List of files or patterns (i.e. for use with glob)
+    node_excludes : list, optional
+        List which nodes should be excluded from analysis, particularly
+        for overlapped spectrum
+    str_excludes : list, optional
+        List of strings that shouldn't appear in filenames
+        
+    Returns
+    -------
+    fns : list
+        Returned list of all suitable filenames
     """
     if not isinstance(fns, list):
         fns = [fns]
@@ -37,17 +52,40 @@ def as_file_list(fns, node_excludes=[], str_excludes=[]):
         exclude_str = f"{int(exclude_str):02d}"
         fns = [fn for fn in fns if f"blc{exclude_str}" not in fn]
     for exclude_str in str_excludes:
-        fns = [fn for fn in fns if exclude_st not in fn]
+        fns = [fn for fn in fns if exclude_str not in fn]
     return fns
 
 
 def run_turboseti(obs_fns, min_drift=0.00001, max_drift=5, snr=10, out_dir='.', gpu_id=0, replace_existing=False):
     """
+    Run TurboSETI on all observation files. 
     Accept observation as input, return and save csv as output (via pandas).
+    
+    Parameters
+    ----------
+    obs_fns : list
+        List of files or patterns for analysis
+    min_drift : float, optional
+        Minimum drift rate, absolute value
+    max_drift : float, optional
+        Maximum drift rate, absolute value
+    snr : float, optional
+        SNR threshold
+    out_dir : str, optional
+        Output directory for .dat files
+    gpu_id : int, optional
+        ID of GPU used for analysis
+    replace_existing : bool, optional
+        Option to overwrite existing .dat files
+        
+    Returns
+    -------
+    turbo_dat_list : list
+        List of all turboseti .dat files created
     """
     p = sp.Profiler(logname='turboseti.log')
     turbo_dat_list = []
-    for data_fn in glob.glob(obs_fns):
+    for data_fn in as_file_list(obs_fns):
        
         # First, check if equivalent h5 data file exists in either source or target directory
         h5_fn_old = f"{os.path.splitext(data_fn)[0]}.h5"
@@ -81,6 +119,17 @@ def run_turboseti(obs_fns, min_drift=0.00001, max_drift=5, snr=10, out_dir='.', 
 
 
 def get_bbox_frame(index, df):
+    """
+    Return dedrifted frame for a given index, if all relevant statistics
+    are in the dataframe. 
+
+    Parameters
+    ----------
+    index : int
+        Signal index
+    df : DataFrame
+        Pandas dataframe with TurboSETI parameters
+    """
     row = df.loc[index]
     param_dict = dataframe.get_frame_params(row['fn'])
     frame = dataframe.turbo_centered_frame(index, df, row['fn'], row['fchans'], **param_dict)
@@ -89,6 +138,19 @@ def get_bbox_frame(index, df):
 
 
 def empty_ts_stats(fchans):
+    """
+    Produce dictionary with empty values for all time series statistics.
+
+    Parameters
+    ----------
+    fchans : int
+        Number of frequency channels 
+
+    Returns
+    -------
+    stats : dict
+        Dictionary of statistics
+    """
     ts_stats = {
         'std': None,
         'min': None,
@@ -116,10 +178,34 @@ def run_bbox_stats(turbo_dat_fns,
                    data_ext='.fil', 
                    data_res_ext='.0005', 
                    replace_existing=False,
-                   bound_type='threshold'):
+                   bound_type='threshold',
+                   divide_std=False):
     """
     Accept TurboSETI .dat files as input, return and save csv as output (via pandas).
     Boundary box statistics.
+
+    Parameters
+    ----------
+    turbo_dat_fns : list
+        List of files or patterns for analysis
+    data_dir : str, optional
+        Location of data
+    data_ext : str, optional
+        File extension of data
+    data_res_ext : str, optional
+        Resolution code of data. Changing this gives you the option of using TurboSETI
+        results on one resolution with data of another.
+    replace_existing : bool, optional
+        Option to overwrite existing .csv files
+    bound_type : str, optional
+        Type of frequency bounding to use, between 'snr' and 'threshold'
+    divide_std : bool, optional
+        Normalize each spectrum by dividing by its standard deviation 
+        
+    Returns
+    -------
+    csv_list : list
+        List of all .csv files created
     """
     p = sp.Profiler(logname='bounding_box.log', verbose=1)
     csv_list = []
@@ -174,7 +260,7 @@ def run_bbox_stats(turbo_dat_fns,
                         # print(l,r)
                         p.stop('bounds')
 
-                        n_frame = frame_processing.t_norm_frame(frame)
+                        n_frame = frame_processing.t_norm_frame(frame, divide_std=divide_std)
                         tr_frame = n_frame.get_slice(l, r)
 
                         # Get time series and normalize
@@ -205,7 +291,20 @@ def run_bbox_stats(turbo_dat_fns,
     return csv_list
 
 
-def plot_snapshot(index, df):
+def plot_snapshot(index, df, divide_std=False):
+    """
+    Plot a single signal, with time series, normalized spectrogram, 
+    and autocorrelation.
+
+    Parameters
+    ----------
+    index : int
+        Signal index
+    df : DataFrame
+        Pandas dataframe with TurboSETI parameters
+    divide_std : bool, optional
+        Normalize each spectrum by dividing by its standard deviation 
+    """
     row = df.loc[index]
     
     param_dict = dataframe.get_frame_params(row['fn'])
@@ -216,7 +315,7 @@ def plot_snapshot(index, df):
 
     l, r, metadata = bounds.threshold_baseline_bounds(spec)
 
-    n_frame = frame_processing.t_norm_frame(dd_frame)
+    n_frame = frame_processing.t_norm_frame(dd_frame, divide_std=divide_std)
     tr_frame = n_frame.get_slice(l, r)
 
     # Get time series and normalize
@@ -258,6 +357,16 @@ def plot_snapshot(index, df):
     
 
 def plot_bounded_frame(index, df):
+    """
+    Plot bounded, dedrifted signal as a frame.
+
+    Parameters
+    ----------
+    index : int
+        Signal index
+    df : DataFrame
+        Pandas dataframe with TurboSETI parameters
+    """
     row = df.loc[index]
     
     param_dict = dataframe.get_frame_params(row['fn'])
@@ -274,12 +383,28 @@ def plot_bounded_frame(index, df):
     
     
 def plot_random_snapshots(df, n=1):
+    """
+    Plot n signals from a dataframe.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Pandas dataframe with TurboSETI parameters
+    """
     df_sampled = df.sample(n=n)
     for i in df_sampled.index:
         plot_snapshot(i, df_sampled)
         
         
 def plot_all_snapshots(df):
+    """
+    Plot all signals from a dataframe.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Pandas dataframe with TurboSETI parameters
+    """
     for i in df.index:
         plot_snapshot(i, df)
     
@@ -287,7 +412,18 @@ def plot_all_snapshots(df):
 
 def get_bbox_df(csv_fns):
     """
-    Read in dataframe with bbox statistics calculated.
+    Read in csvs with bbox statistics calculated and compile into
+    Pandas dataframe.
+
+    Parameters
+    ----------
+    csv_fns : list
+        List of files or patterns for analysis
+        
+    Returns
+    -------
+    data_df : DataFrame
+        Compiled dataframe
     """
     df_list = [pd.read_csv(fn) for fn in as_file_list(csv_fns)]
     data_df = pd.concat(df_list, ignore_index=True)
@@ -308,10 +444,26 @@ def get_bbox_df(csv_fns):
 def plot_bbox_stats(csv_fns, 
                     pow=5/3, 
                     use_triangle=True, 
-                    bound_type='threshold', 
+                    bound_type='threshold',
+                    divide_std=False, 
                     plot_fn_prefix='bbox_stats'):
     """
-    Make stats plots with RFI and synthetic signals.
+    Make stats plots with RFI and synthetic signals, and save result as a pdf.
+
+    Parameters
+    ----------
+    csv_fns : list
+        List of files or patterns for analysis
+    pow : float, optional
+        Exponent for ACF fit, either 5/3 or 2 (arising from phase structure function) 
+    use_triangle : bool, optional
+        Option to use triangle function to modulate modeled ACF (default: True)
+    bound_type : str, optional
+        Type of frequency bounding to use, between 'snr' and 'threshold'
+    divide_std : bool, optional
+        Normalize each spectrum by dividing by its standard deviation 
+    plot_fn_prefix : str, optional
+        Filename prefix for plot
     """
     data_df = get_bbox_df(csv_fns)
     
@@ -348,7 +500,7 @@ def plot_bbox_stats(csv_fns,
             else:
                 l, r, _ = bounds.threshold_baseline_bounds(frame.integrate())
 
-            n_frame = frame_processing.t_norm_frame(frame)
+            n_frame = frame_processing.t_norm_frame(frame, divide_std=divide_std)
             tr_frame = n_frame.get_slice(l, r)
             tr_ts = tr_frame.integrate('f')
             tr_ts /= tr_ts.mean()

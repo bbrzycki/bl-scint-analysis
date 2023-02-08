@@ -6,9 +6,26 @@ import setigen as stg
 from . import factors
 
 
-def t_norm_frame(frame, as_data=None, divide=False):
+def t_norm_frame(frame, as_data=None, divide_std=False):
     """
-    "Normalize" frame by subtracting out noise background, along time axis.
+    Normalize frame by subtracting out noise background, along time axis.
+    Additional option to divide out by the standard deviation of each 
+    individual spectrum. 
+
+    Parameters
+    ----------
+    frame : stg.Frame
+        Raw spectrogram frame
+    as_data : stg.Frame, optional
+        Use alternate frame to compute noise stats. If desired, use a more
+        isolated region of time-frequency space for cleaner computation.
+    divide_std : bool, optional
+        Normalize each spectrum by dividing by its standard deviation 
+
+    Returns
+    -------
+    n_frame : stg.Frame
+        Normalized frame
     """
     if as_data is not None:
         # as_data is a Frame from which to get the bounds, to normalize 'frame'
@@ -18,7 +35,7 @@ def t_norm_frame(frame, as_data=None, divide=False):
     clipped_data = sigma_clip(data, axis=1, masked=True)
     n_frame = frame.copy()
     n_frame.data = (frame.data - np.mean(clipped_data, axis=1, keepdims=True))
-    if divide:
+    if divide_std:
         n_frame.data = n_frame.data / np.std(clipped_data, axis=1, keepdims=True)
     return n_frame
 

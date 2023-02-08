@@ -48,6 +48,22 @@ def query_ne2001(l, b, d, field=None):
     
     Note that this returns an astropy Quantity; use the `.value` property
     to access the underlying value only.
+
+    Parameters
+    ----------
+    l : float
+        Galactic longitude
+    b : float
+        Galactic latitude
+    d : float
+        Distance in kpc
+    field : str, optional
+        Name of scattering property to return. If None, prints all values. 
+        
+    Returns
+    -------
+    output : astropy.Quantity
+        Specific output requested, or None if `field` is None
     """
     current_path = os.path.abspath(os.path.dirname(__file__))
     exec_path = os.path.join(current_path, 'NE2001/bin.NE2001/run_NE2001.pl')
@@ -85,7 +101,20 @@ def query_ne2001(l, b, d, field=None):
 
 def plot_profile(l, b, d=(1, 20), steps=100, field='SCINTIME'):
     """
-    Plot profile.
+    Plot profile of scattering property through the galaxy.
+
+    Parameters
+    ----------
+    l : float
+        Galactic longitude
+    b : float
+        Galactic latitude
+    d : tuple, or list
+        Tuple of starting and ending distance, in kpc
+    steps : int
+        Number of distance steps to use
+    field : str, optional
+        Name of scattering property to plot 
     """
     d = np.linspace(d[0], d[1], steps)
         
@@ -102,7 +131,22 @@ def plot_profile(l, b, d=(1, 20), steps=100, field='SCINTIME'):
     
 def plot_map(l=(-2, 2), b=(-2, 2), d=8, l_steps=5, b_steps=5, field='SCINTIME'):
     """
-    Plot 2D map of calculated field.
+    Plot 2D map of calculated field, out to a given distance.
+
+    Parameters
+    ----------
+    l : tuple, or list
+        Tuple of min and max galactic longitudes
+    b : tuple, or list
+        Tuple of min and max galactic latitudes 
+    d : float
+        Distance in kpc
+    l_steps : int
+        Number of longitude steps to use
+    b_steps : int
+        Number of latitude steps to use
+    field : str, optional
+        Name of scattering property to plot 
     """
     l = np.linspace(l[0], l[1], l_steps)
     dl = l[1] - l[0]
@@ -222,6 +266,11 @@ def get_fresnel(f, D, normalize=True):
         Distance in kpc
     normalize : bool
         Whether to scale by sqrt(1/2pi)
+
+    Returns
+    -------
+    l_f : float
+        Fresnel scale
     """
     
     wl = const.c / (f * u.GHz)

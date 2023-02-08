@@ -14,7 +14,20 @@ def plot_bounds(frame, l, r, use_db=False, cb=True, lw=2):
     """
     Plot frame data with overlaid bounding boxes.
     
-    lw: line width
+    Parameters
+    ----------
+    frame : stg.Frame
+        Analysis frame
+    l : int
+        Left bound
+    r : int
+        Right bound
+    use_db : bool, optional
+        Option to convert intensities to dB
+    cb : bool, optional
+        Option to display colorbar
+    lw : int, optional
+        Line width in matplotlib
     """
     frame.plot(use_db=use_db, cb=cb)
     plt.axvline(l, ls='--', c='w', lw=lw)
@@ -35,17 +48,17 @@ def polyfit_bounds(spec, deg=1, snr_threshold=10):
     ----------
     spec : ndarray
         Intensity spectra
-    deg : int
+    deg : int, optional
         Degree of polynomial fit
-    snr_threshold : int, float
+    snr_threshold : int, float, optional
         Threshold for peak detection, in units of noise standard deviations
         
     Returns
     -------
     l : int
-        Lower bound
+        Left bound
     r : int
-        Upper bound
+        Right bound
     metadata : dict
         Dictionary with metadata related to peak-finding. Contains polynomial fit
         object, number of peaks, and detected peak information.
@@ -83,23 +96,23 @@ def polyfit_bounds(spec, deg=1, snr_threshold=10):
 
 def threshold_bounds(spec, half_width=3):
     """
-    Create bounds based on intensity attentuation on either side of the central
+    Create bounds based on integrated intensity on either side of the central
     peak. Threshold is set by ideal Gaussian profile, in units of standard deviations (sigma).
     
     Parameters
     ----------
     spec : ndarray
         Intensity spectra
-    half_width : float
+    half_width : float, optional
         Assuming a Gaussian signal profile, the half_width determines where to set the bounds,
         in units of sigma from the peak.
         
     Returns
     -------
     l : int
-        Lower bound
+        Left bound
     r : int
-        Upper bound
+        Right bound
     metadata : dict
         Dictionary with metadata. Contains noise mean and spectra maximum,
         which are used to normalize spec to the spectra maximum.
@@ -124,14 +137,31 @@ def threshold_bounds(spec, half_width=3):
 
 def threshold_baseline_bounds(spec, p=0.01):
     """
-    Threshold with baseline modeled.
+    Create bounds based on integrated intensity on either side of the central
+    peak, as a fraction of the peak integrated intensity. Uses a 1D fit to the
+    noise baseline.
+    
+    Parameters
+    ----------
+    spec : ndarray
+        Intensity spectra
+    p : float, optional
+        Fraction of peak, used to set left and right bounds
+        
+    Returns
+    -------
+    l : int
+        Left bound
+    r : int
+        Right bound
+    metadata : dict
+        Dictionary with metadata. Contains noise mean and spectra maximum,
+        which are used to normalize spec to the spectra maximum.
     """
     noise_spec = sigma_clip(spec, masked=True)
     x = np.arange(len(spec))
 
-    # Linear baseline
-    deg = 1
-    coeffs = np.polyfit(x[~noise_spec.mask], noise_spec[~noise_spec.mask], deg)
+    coeffs = np.polyfit(x[~noise_spec.mask], noise_spec[~noise_spec.mask], 1)
     poly = np.poly1d(coeffs)
     
     spec = spec - poly(x)
@@ -152,6 +182,28 @@ def threshold_baseline_bounds(spec, p=0.01):
 
 
 def snr_bounds(spec, snr=5):
+    """
+    Create bounds based on intensity attentuation on either side of the central
+    peak, as an SNR threshold above the noise background. Uses a 1D fit to the
+    noise baseline.
+    
+    Parameters
+    ----------
+    spec : ndarray
+        Intensity spectra
+    snr : float, optional
+        SNR threshold to set left and right bounds
+        
+    Returns
+    -------
+    l : int
+        Left bound
+    r : int
+        Right bound
+    metadata : dict
+        Dictionary with metadata. Contains noise mean and spectra maximum,
+        which are used to normalize spec to the spectra maximum.
+    """
     peak = np.argmax(spec)
     
     y = sigma_clip(spec)
@@ -184,19 +236,19 @@ def gaussian_bounds(spec, half_width=3, peak_guess=None):
     ----------
     spec : ndarray
         Intensity spectra
-    half_width : float
+    half_width : float, optional
         Assuming a Gaussian signal profile, the half_width determines where to set the bounds,
         in units of sigma from the peak.
-    peak_guess : int
+    peak_guess : int, optional
         Guess for peak index. Should normally be the center of the spectrum, but can have 
         strange side effects.
         
     Returns
     -------
     l : int
-        Lower bound
+        Left bound
     r : int
-        Upper bound
+        Right bound
     metadata : dict
         Dictionary with metadata related to peak-finding. Contains Gaussian fit information.
     """
@@ -230,16 +282,16 @@ def clipped_bounds(spec, min_empty_bins=2):
     ----------
     spec : ndarray
         Intensity spectra
-    min_empty_bins : int
+    min_empty_bins : int, optional
         Minimum number of adjacent "empty", or non-clipped, bins required to 
         mark either bound with respect to the central peak.
         
     Returns
     -------
     l : int
-        Lower bound
+        Left bound
     r : int
-        Upper bound
+        Right bound
     metadata : dict
         Dictionary with metadata related to peak-finding. Contains detected
         peak information.
@@ -292,21 +344,21 @@ def clipped_2D_bounds(frame, min_empty_bins=2, min_clipped=1, peak_prominence=4)
     ----------
     frame : setigen.Frame
         Frame of intensity data
-    min_empty_bins : int
+    min_empty_bins : int, optional
         Minimum number of adjacent "empty", or non-clipped, bins required to 
         mark either bound with respect to the central peak.
-    min_clipped : int
+    min_clipped : int, optional
         Minimum number of pixels clipped by sigma_clip in the time direction in
         order for a frequency bin to be considered part of the signal.
-    peak_prominence : int
+    peak_prominence : int, optional
         Prominence in units of clipped pixels, for use in peak finding.
         
     Returns
     -------
     l : int
-        Lower bound
+        Left bound
     r : int
-        Upper bound
+        Right bound
     metadata : dict
         Dictionary with metadata related to peak-finding. Contains detected
         peak information.
@@ -378,9 +430,9 @@ def boxcar_bounds(spec, window_sizes=None):
     Returns
     -------
     l : int
-        Lower bound
+        Left bound
     r : int
-        Upper bound
+        Right bound
     metadata : dict
         Dictionary with metadata related to peak-finding. Contains peak SNR 
         corresponding to the "best" boxcar filter.

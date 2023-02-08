@@ -7,7 +7,17 @@ import blimpy as bl
 
 def make_dataframe(dat_file):
     """
-    Create pandas dataframe from TurboSETI output.
+    Create Pandas dataframe from TurboSETI output.
+
+    Parameters
+    ----------
+    dat_file : str
+        TurboSETI .dat filename to format as a dataframe
+        
+    Returns
+    -------
+    dataframe : DataFrame
+        Dataframe with extracted TurboSETI parameters
     """
     root, ext = os.path.splitext(dat_file)
     if ext != '.dat':
@@ -34,7 +44,18 @@ def make_dataframe(dat_file):
 
 def get_frame_params(fn):
     """
-    Get relevant parameters for grabbing data. 
+    Get frame resolution from a spectrogram file without loading the 
+    actual data.
+
+    Parameters
+    ----------
+    fn : str
+        .fil or .h5 filename
+        
+    Returns
+    -------
+    params : dict
+        Dictionary with tchans, df, dt
     """
     container = bl.Waterfall(fn, load_data=False).container
     return {
@@ -92,13 +113,28 @@ def turbo_centered_frame(i,
     """
     Create Frame centered at a target signal from a TurboSETI-created .dat file.
     Does not remove drift -- use Frame.dedrift separately to do so.
-    
-    i : signal index
-    dataframe : pandas dataframe
-    fn : data filename to actually grab the data
-    fchans : number of frequency bins in target frame 
-    tchans : number of time bins in data
-    df : frequency resolution (Hz)
+
+    Parameters
+    ----------
+    i : int
+        Signal index
+    dataframe : DataFrame
+        Pandas dataframe with TurboSETI parameters
+    fn : str, optional
+        Filename of datafile (unless filename is also in the dataframe, under 'fn')
+    fchans : int, optional
+        Number of frequency bins in target frame
+    tchans : int, optional
+        Number of time samples in data
+    df : float, optional
+        Frequency resolution (Hz)
+    dt : float, optional
+        Time resolution (Hz)
+        
+    Returns
+    -------
+    frame : stg.Frame
+        Generated frame
     """
     row = dataframe.loc[i]
     drift_rate = row['DriftRate']

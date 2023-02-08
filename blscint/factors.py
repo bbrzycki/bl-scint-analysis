@@ -2,8 +2,6 @@
 Multiplicative factors to take a standard deviation (sigma) value
 to various measures such as full width at half maximum (FWHM).
 """
-
-
 import numpy as np
 
 # Half max

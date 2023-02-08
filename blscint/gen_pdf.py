@@ -24,6 +24,18 @@ from . import ts_statistics
 def find_nearest(arr, val):
     """
     Return index of closest value.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        Input array
+    val : float
+        Target value
+
+    Returns
+    -------
+    idx : int
+        Closest index
     """
     idx = (np.abs(np.array(arr) - val)).argmin()
     return idx
@@ -31,8 +43,22 @@ def find_nearest(arr, val):
 
 def bpdf(g1, g2, ac):
     """
-    Calculate join probability of g1, g2 separated by a temporal auto-correlation value of ac,
+    Calculate joint probability of g1, g2 separated by a temporal auto-correlation value of ac,
     according to Eq. B12 of Cordes, Lazio, & Sagan 1997.
+
+    Parameters
+    ----------
+    g1 : float
+        Signal gain 1
+    g2 : float
+        Signal gain 2
+    ac : float
+        Autocorrelation value in [0, 1)
+
+    Returns
+    -------
+    f_2g : float
+        Joint probability
     """
     # Calculate modified Bessel term, which can diverge.
     i_factor = scipy.special.i0(2*np.sqrt(g1*g2*ac)/(1-ac))
@@ -46,7 +72,26 @@ def bpdf(g1, g2, ac):
     
 def get_ts_pdf(t_d, dt, num_samples, max_g=5, steps=1000):
     """
-    Produce time series data via bivariate pdf for the gain.
+    Produce time series data via bivariate pdf for the gain. With a maximum gain `max_g`
+    and number of potential gain levels within [0, `max_g`].
+
+    Parameters
+    ----------
+    t_d : float
+        Scintillation timescale (s)
+    dt : float
+        Time resolution (s)
+    num_samples : int
+        Number of synthetic samples to produce
+    max_g : float, optional
+        Maximum possible gain (for computation)
+    steps : int, optional
+        Number of possible gain levels within [0, `max_g`] (for computation)
+
+    Returns
+    -------
+    Y : np.ndarray
+        Final synthetic scintillated time series (Y values)
     """
     ac_arr = stg.func_utils.gaussian(np.arange(0, steps),
                                      0, 
