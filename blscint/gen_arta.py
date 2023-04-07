@@ -157,7 +157,11 @@ def inv_exp_cdf(x, rate=1):
     return -np.log(1. - x) / rate
 
 
-def get_Y(Z):
+def inv_levy_cdf(x, loc=0, scale=1):
+    return scale / (norm.ppf(1 - x / 2))**2 + loc
+
+
+def get_Y(Z, dist='exp'):
     """
     Get final values specific to an overall exponential distribution,
     normalized to mean of 1.
@@ -172,11 +176,14 @@ def get_Y(Z):
     Y : np.ndarray
         Final synthetic scintillated time series (Y values)
     """
-    Y = inv_exp_cdf(norm.cdf(Z))
+    if dist == 'exp':
+        Y = inv_exp_cdf(norm.cdf(Z))
+    else:
+        Y = inv_levy_cdf(norm.cdf(Z))
     return Y / np.mean(Y)
 
 
-def get_ts_arta(t_d, dt, num_samples, p=2, pow=5/3):
+def get_ts_arta(t_d, dt, num_samples, p=2, pow=5/3, dist='exp'):
     """
     Produce time series data via an ARTA process. 
 
@@ -200,6 +207,6 @@ def get_ts_arta(t_d, dt, num_samples, p=2, pow=5/3):
     """
     rho = get_rho(t_d, dt, p, pow)
     Z = build_Z(rho, num_samples)
-    Y = get_Y(Z)
+    Y = get_Y(Z, dist)
     return Y
 

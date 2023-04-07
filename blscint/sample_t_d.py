@@ -164,15 +164,15 @@ class NESampler(object):
         """
         return C1 / (2 * np.pi * nu_d)
     
-    def nu_sb(self, t_d):
+    def nu_sb(self, t_d, C2=2.02):
         """
         Spectral broadening.
         """
-        C2 = 2.02
         return C2 / (2 * np.pi * t_d)
     
     def sample(self, n=1000, f=(4, 8), v=(5, 100), d=None, 
                d_sampling_type='mcmillan', 
+               weight_by_flux=False,
                galcen_distance=8.5,
                scint_regime='moderate', verbose=True,):
         """
@@ -180,6 +180,8 @@ class NESampler(object):
         
         Sampling type can be: 'uniform', 'mcmillan', 'carrollostlie'.
         McMillan model uses 8.21 kpc to the galactic center, but NE2001 uses 8.5 kpc. 
+        
+        Set weight_by_flux=True to account for inverse square law.
         """
         min_d = min_d_ss(self.l, self.b, d=(1e-3, 20), f=f, delta_d=self.delta_d)
         if min_d is None:
@@ -208,20 +210,19 @@ class NESampler(object):
             gcs = cs.transform_to(coord.Galactocentric(galcen_distance=galcen_distance*u.kpc)) 
             gcs.representation_type = 'cylindrical'
             if d_sampling_type == 'uniform':
-                sampled_idx = np.random.choice(d_idx, size=n)
+                d_rel_prob = np.ones(d_idx.shape)
+            elif d_sampling_type == 'mcmillan':
+                d_rel_prob = mcmillan_rho_tot(gcs.rho.to(u.kpc).value,
+                                              gcs.z.to(u.kpc).value)
             else:
-                if d_sampling_type == 'mcmillan':
-                    d_rel_prob = mcmillan_rho_tot(gcs.rho.to(u.kpc).value,
-                                                       gcs.z.to(u.kpc).value)
-                else:
-                    # For Carroll & Ostlie 2007
-                    print('hi')
-                    d_rel_prob = carroll_ostlie_n(gcs.rho.to(u.kpc).value,
-                                                       gcs.z.to(u.kpc).value)
+                # For Carroll & Ostlie 2007
+                d_rel_prob = carroll_ostlie_n(gcs.rho.to(u.kpc).value,
+                                              gcs.z.to(u.kpc).value)
                  
-                d_prob = d_rel_prob / np.sum(d_rel_prob)
-                
-                sampled_idx = np.random.choice(d_idx, size=n, p=d_prob)
+            if weight_by_flux:
+                d_rel_prob = d_rel_prob / self.d[d_idx]**2
+            d_prob = d_rel_prob / np.sum(d_rel_prob)
+            sampled_idx = np.random.choice(d_idx, size=n, p=d_prob)
                  
             sampled_t_ds = self.raw_data.t_d[sampled_idx]
             sampled_nu_ds = self.raw_data.nu_d[sampled_idx]
@@ -252,13 +253,18 @@ class NESampler(object):
         #     'nu_d': nu_ds,
         #     'nu_sb': self.nu_sb(t_ds),
         # }
-        return NEData(t_d=t_ds, nu_d=nu_ds)
+        return NEData(t_d=t_ds, nu_d=nu_ds, d=sampled_ds, f=f, v=v)
     
     
 class NEData(object):
-    def __init__(self, **kwargs):
-        self.t_d = kwargs['t_d']
-        self.nu_d = kwargs['nu_d']
+    def __init__(self, t_d, nu_d, d=np.empty(0), f=np.empty(0), v=np.empty(0)):
+        self.t_d = t_d
+        self.nu_d = nu_d
+        assert t_d.shape == nu_d.shape
+        self.d = d
+        self.f = f
+        self.v = v
+        
         
         self.labels = {
             't_d': 'Scintillation Timescale',
@@ -293,10 +299,17 @@ class NEData(object):
     def __add__(self, other):
         t_d = np.concatenate(self.t_d, other.t_d)
         nu_d = np.concatenate(self.nu_d, other.nu_d)
-        return SampledNEParams(t_d=t_d, nu_d=nu_d)
+        d = np.concatenate(self.d, other.d)
+        f = np.concatenate(self.f, other.f)
+        v = np.concatenate(self.v, other.v)
+        return NEData(t_d=t_d, nu_d=nu_d, d=d, f=f, v=v)
     
     def mask(self, mask):
-        return SampledNEParams(t_d=self.t_d[mask], nu_d=self.nu_d[mask])
+        return NEData(t_d=self.t_d[mask], 
+                      nu_d=self.nu_d[mask],
+                      d=self.d[mask],
+                      f=self.f[mask],
+                      v=self.v[mask])
     
     def report(self):
         for quantity in self.data_dict:
@@ -345,7 +358,13 @@ class NEData(object):
             plt.title(f'{np.median(data):.3}({np.quantile(data, 0.25):.3}, {np.quantile(data, 0.75):.3}) {self.units[quantity]} (mode: {mode:.3} {self.units[quantity]})')
         plt.tight_layout()
             
-    def plot(self):
+    def plot(self, num_bins=25, masks=None, labels=None):
+        """
+        Plot 2x2 grid of histograms of sampled scintillation properties.
+
+        Optionally, specify boolean masks and labels to plot sub-histograms
+        within each figure, to get a sense of the sampling breakdown.
+        """
         fig, axs = plt.subplots(2, 2, figsize=(10, 6))
         for quantity in self.data_dict:
             if quantity == 't_d':
@@ -356,22 +375,42 @@ class NEData(object):
                 plt.sca(axs[1, 0])
             if quantity == 'tau_d':
                 plt.sca(axs[1, 1])
+            plt.gca().set_aspect=('equal')
             
             data = self.data_dict[quantity]
+            lower_quartile, upper_quartile = np.quantile(data, [0.25, 0.75])
             clipped_data = sigma_clip(data, maxiters=10, masked=False)
-            vals, bins = np.histogram(clipped_data, bins=25)
+            clipped_data = data[(data >= np.min([np.min(clipped_data), lower_quartile]))
+                                & (data <= np.max([np.max(clipped_data), upper_quartile]))]
+
+            vals, bins = np.histogram(clipped_data, bins=num_bins)
             mode_idx = np.argmax(vals)
             mode = (bins[mode_idx] + bins[mode_idx + 1]) / 2
             
             plt.hist(data, bins=bins, histtype='step', color='k')
+
+            if masks is not None:
+                for mask, label in zip(masks, labels):
+                    p = plt.hist(data[mask], 
+                                 bins=bins,
+                                 histtype='step', 
+                                 # alpha=1/len(masks), 
+                                 label=label)
+                    plt.hist(data[mask], 
+                             bins=bins,
+                             histtype='bar', 
+                             alpha=1/len(masks), 
+                             color=p[2][0].get_facecolor())
+                plt.legend()
             
+            # plt.xlim(bins[0], bins[-1])
             plt.xlabel(f'{self.labels[quantity]} ({self.units[quantity]})')
             plt.ylabel('Counts')
             
             plt.axvline(np.median(data), ls='--', c='k')
-            plt.axvline(np.quantile(data, 0.25), ls=':', c='k')
-            plt.axvline(np.quantile(data, 0.75), ls=':', c='k')
-            # plt.title(f'{np.median(data):.3}({np.quantile(data, 0.25):.3}, {np.quantile(data, 0.75):.3}) {self.units[quantity]} (mode: {mode:.3} {self.units[quantity]})')
+            plt.axvline(lower_quartile, ls=':', c='k')
+            plt.axvline(upper_quartile, ls=':', c='k')
+
         plt.tight_layout()
             
     def plot_t_d(self):

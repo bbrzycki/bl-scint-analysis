@@ -41,7 +41,8 @@ def get_stats(ts):
     stats['std'] = np.std(ts)
     stats['min'] = np.min(ts)
     
-    relu_ts = np.where(ts >= 0, ts, 1e-3)
+    # relu_ts = np.where(ts >= 0, ts, 1e-3)
+    relu_ts = ts
     stats['ks'] = scipy.stats.kstest(relu_ts, 
                                      'expon').statistic
     stats['anderson'] = scipy.stats.anderson(relu_ts,
@@ -103,18 +104,22 @@ def fit_acf(acf, pow=2, use_triangle=True, remove_spike=False):
     """
     if remove_spike:
         # t_acf_func = lambda x, sigma: acf_func(x, 1, sigma, 0)
-        t_acf_func = lambda x, t_d: noisy_scint_acf_gen(pow=pow, use_triangle=use_triangle)(x, t_d, 1, 0)
+        t_acf_func = lambda x, t_d: noisy_scint_acf_gen(pow=pow, 
+                                                        use_triangle=use_triangle)(x, t_d, 1, 0)
+        popt, a = optimize.curve_fit(t_acf_func, 
+                                 np.arange(1, len(acf)),
+                                 acf[1:],
+                                 bounds=([0], [len(acf)]))
+        return [popt[0], 1, 0]
+        return [popt[0] + 1, 1, 0]
     else:
         # t_acf_func = acf_func
-        t_acf_func = noisy_scint_acf_gen(pow=pow, use_triangle=use_triangle)
-    popt, a = optimize.curve_fit(t_acf_func, 
+        t_acf_func = noisy_scint_acf_gen(pow=pow, 
+                                         use_triangle=use_triangle)
+        popt, a = optimize.curve_fit(t_acf_func, 
                                  np.arange(len(acf)),
                                  acf,
                                  bounds=([0, 0, 0], [len(acf), 1, 1]))
-#     print(a)
-    if remove_spike:
-        return [popt[0], 1, 0]
-    else:
         return popt
     
     
