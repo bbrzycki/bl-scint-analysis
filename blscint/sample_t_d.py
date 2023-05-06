@@ -47,11 +47,11 @@ def mcmillan_rho_tot(R, z):
 
 
 def carroll_ostlie_n(R, z):
-    n0 = 5.502 # Normalization, stars / pc^-3
+    n0 = 5.502 # Normalization, stars * pc^-3
     Z_thin = 0.350
     Z_thick = 1.
     hR = 2.25
-    return n0 * (np.exp(-z / Z_thin) + 0.085 * np.exp(-z / Z_thick)) * np.exp(-R / hR)
+    return n0 * (np.exp(-np.abs(z) / Z_thin) + 0.085 * np.exp(-np.abs(z) / Z_thick)) * np.exp(-np.abs(R) / hR)
 
 
 def coverage(t_ds, start=None, stop=None):
@@ -101,7 +101,7 @@ def transition_freqs(l, b, d=(1e-3, 20), d_steps=1000):
 
 def min_d_ss(l, b, d=(1e-3, 20), f=(4, 8), delta_d=0.01):
     """
-    Get min distince for strong scattering.
+    Get min distance for strong scattering.
     """
     f_max = np.max(f)
     d = np.arange(d[0], d[1] + delta_d / 2, delta_d)
@@ -174,7 +174,7 @@ class NESampler(object):
                d_sampling_type='mcmillan', 
                weight_by_flux=False,
                galcen_distance=8.5,
-               scint_regime='moderate', verbose=True,):
+               scint_regime='moderate', verbose=False,):
         """
         Sample frequencies, transverse velocities, and scale base model values appropriately.
         

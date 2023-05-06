@@ -41,6 +41,21 @@ def to_galactic(ra, dec=None):
     return gal.l.value, gal.b.value
 
 
+def to_ra_dec(l, b=None):
+    if b is None:
+        assert isinstance(l, str)
+        c = SkyCoord(l, unit=(u.deg, u.deg), frame='galactic')
+    else:
+        if isinstance(l, str) and isinstance(b, str):
+            c = SkyCoord(l, b, unit=(u.deg, u.deg), frame='galactic')
+        elif type(l) in [int, float] and type(b) in [int, float]:
+            c = SkyCoord(l, b, unit=(u.deg, u.deg), frame='galactic')
+        else:
+            c = SkyCoord(l, b, frame='galactic')
+    ra_dec = c.icrs
+    return ra_dec.ra.value, ra_dec.dec.value
+
+
 def query_ne2001(l, b, d, field=None):
     """
     Query NE2001 model for various parameters, as described in 
@@ -74,13 +89,15 @@ def query_ne2001(l, b, d, field=None):
 
         if field is None:
             field = 'ALL'
+        # Note: this suppresses floating-point exceptions (IEEE_UNDERFLOW_FLAG IEEE_DENORMAL)
         output = subprocess.run(['./run_NE2001.pl',
                                  str(l),
                                  str(b), 
                                  str(d), 
                                  '-1', 
                                  field],
-                                stdout=subprocess.PIPE).stdout.decode('utf-8')
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL).stdout.decode('utf-8')
     except:
         pass
     finally:

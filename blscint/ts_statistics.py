@@ -31,7 +31,7 @@ def acf(ts, remove_spike=False):
     return autocorr(ts, remove_spike=remove_spike)
     
 
-def get_stats(ts):
+def get_stats(ts, pow=5/3, use_triangle=True):
     """
     Calculate statistics based on normalized time series (to mean 1).
     """
@@ -52,15 +52,13 @@ def get_stats(ts):
     stats['lag1'] = ac[1]
     stats['lag2'] = ac[2]
     
-    for label, pow in [('sq', 2), ('k', 5/3)]:
-        for use_triangle in [True, False]:
-            try:
-                popt = fit_acf(ac, pow=pow, use_triangle=use_triangle)
-            except RuntimeError:
-                popt = [None, None, None]
-            stats[f'acf_t_d.{label}.{use_triangle}'] = popt[0]
-            stats[f'acf_A.{label}.{use_triangle}'] = popt[1]
-            stats[f'acf_W.{label}.{use_triangle}'] = popt[2]
+    try:
+        popt = fit_acf(ac, pow=pow, use_triangle=use_triangle)
+    except RuntimeError:
+        popt = [None, None, None]
+    stats['acf_t_d'] = popt[0]
+    stats['acf_A'] = popt[1]
+    stats['acf_W'] = popt[2]
     
     return stats
 
