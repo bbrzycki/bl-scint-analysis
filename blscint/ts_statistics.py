@@ -55,7 +55,7 @@ def get_stats(ts, pow=5/3, use_triangle=True):
     try:
         popt = fit_acf(ac, pow=pow, use_triangle=use_triangle)
     except RuntimeError:
-        popt = [None, None, None]
+        popt = [np.nan, np.nan, np.nan]
     stats['acf_t_d'] = popt[0]
     stats['acf_A'] = popt[1]
     stats['acf_W'] = popt[2]
