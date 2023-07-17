@@ -1,2 +1,7 @@
-Estimating scattering strength with NE2001
-==========================================
+Estimating scattering scales with NE2001
+========================================
+
+:code:`blscint` provides a host of functions to help get a sense of the 
+expected scattering scales for your observing targets, based on the NE2001 
+free electon density model from Cordes & Lazio 2002. 
+
