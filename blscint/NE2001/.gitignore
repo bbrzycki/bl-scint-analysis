@@ -1,0 +1,6 @@
+bin.NE2001/NE2001
+fort.*
+*.swp
+*.a
+*.o
+*.out

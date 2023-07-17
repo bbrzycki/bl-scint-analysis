@@ -21,7 +21,7 @@ from . import frame_processing
 from . import ts_statistics
 from . import gen_arta
 
-import sprofiler as sp
+import jort
 
 
 def as_file_list(fns, node_excludes=[], str_excludes=[]):
@@ -83,7 +83,7 @@ def run_turboseti(obs_fns, min_drift=0.00001, max_drift=5, snr=10, out_dir='.', 
     turbo_dat_list : list
         List of all turboseti .dat files created
     """
-    p = sp.Profiler(logname='turboseti.log')
+    p = jort.Profiler(logname='turboseti.log')
     turbo_dat_list = []
     for data_fn in as_file_list(obs_fns):
        
@@ -207,7 +207,7 @@ def run_bbox_stats(turbo_dat_fns,
     csv_list : list
         List of all .csv files created
     """
-    p = sp.Profiler(logname='bounding_box.log', verbose=1)
+    p = jort.Profiler(logname='bounding_box.log', verbose=1)
     csv_list = []
     for turbo_dat_fn in as_file_list(turbo_dat_fns):
         print(f"Working on {turbo_dat_fn}")
@@ -468,7 +468,7 @@ def plot_bbox_stats(csv_fns,
     data_df = get_bbox_df(csv_fns)
     
     # Simulate signals
-    p = sp.Profiler(logname='synthetic_scintillations.log')
+    p = jort.Profiler(logname='synthetic_scintillations.log')
     n_samples = 1000
 
     synth_stats_dicts = {}

@@ -11,3 +11,4 @@ tqdm>=4.47.0
 pytz>=2022.1
 sphinx-rtd-theme>=0.4.3
 sphinx-theme==1.0
+jort
