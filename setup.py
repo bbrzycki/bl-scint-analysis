@@ -3,12 +3,19 @@ import setuptools
 with open('README.md', 'r') as fh:
     long_description = fh.read()
 
+entry_points = {
+    'console_scripts': [
+        'blscint = blscint.blscint_exe:cli'
+    ]
+}
+
 with open("requirements.txt", "r") as f:
     install_requires = f.readlines()
 
+exec(open('jort/_version.py').read())
 setuptools.setup(
     name='blscint',
-    version='0.0.1',
+    version=__version__,
     author='Bryan Brzycki',
     author_email='bbrzycki@berkeley.edu',
     description='SETI scintillation utilities',
@@ -19,6 +26,7 @@ setuptools.setup(
 #         'Documentation': 'https://blscint.readthedocs.io/en/latest/',
 #         'Source': 'https://github.com/bbrzycki/blscint'
 #     },
+    entry_points=entry_points,
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=install_requires,

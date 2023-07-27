@@ -12,7 +12,9 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../'))
+dirname = os.path.dirname(__file__)
+sys.path.insert(0, os.path.join(dirname, '../../'))
+exec(open(os.path.join(dirname, '../../jort/_version.py')).read())
 
 
 # -- Project information -----------------------------------------------------
@@ -22,7 +24,7 @@ copyright = '2023, Bryan Brzycki'
 author = 'Bryan Brzycki'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1'
+release = __version__
 
 
 # -- General configuration ---------------------------------------------------
