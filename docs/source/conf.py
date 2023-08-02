@@ -20,7 +20,7 @@ exec(open(os.path.join(dirname, '../../jort/_version.py')).read())
 # -- Project information -----------------------------------------------------
 
 project = 'blscint'
-copyright = '2023, Bryan Brzycki'
+copyright = '2022-2023, Bryan Brzycki'
 author = 'Bryan Brzycki'
 
 # The full version, including alpha/beta/rc tags

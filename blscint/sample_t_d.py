@@ -9,12 +9,11 @@ try:
     import cPickle as pickle
 except:
     import pickle
-    
+
 import scipy.stats
 
 from astropy.stats import sigma_clip
 from scipy.stats import median_absolute_deviation
-from galpy.potential.mwpotentials import McMillan17
 
 from . import ne2001
 

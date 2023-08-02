@@ -12,7 +12,7 @@ entry_points = {
 with open("requirements.txt", "r") as f:
     install_requires = f.readlines()
 
-exec(open('jort/_version.py').read())
+exec(open('blscint/_version.py').read())
 setuptools.setup(
     name='blscint',
     version=__version__,

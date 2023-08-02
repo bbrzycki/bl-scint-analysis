@@ -1,6 +1,7 @@
 import numpy as np
 from scipy import optimize
 from astropy.stats import sigma_clip
+
 import setigen as stg
 
 from . import factors
