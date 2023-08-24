@@ -3,6 +3,8 @@ import os
 import click
 
 from ._version import __version__
+from . import _analyze_obs
+from .analysis import diagstat
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -16,16 +18,23 @@ def cli(ctx):
     pass 
 
 
-@click.command(short_help='Compute diagnostic statistics for each detected signal',
-               no_args_is_help=True,)
-@click.argument('filename')
-@click.option('-hd', '--hits-dir', 
-              help='Directory with .dat hits files, if different from data directory')
-def diagstat(filename, text):
-    """
-    Compute diagnostic statistics for each detected signal
-    """
-    pass
+# @click.command(short_help='Compute diagnostic statistics for each detected signal',
+#                no_args_is_help=True,)
+# @click.argument('filename')
+# @click.option('-hd', '--hits-dir', 
+#               help='Directory with .dat hits files, if different from data directory')
+# @click.option('-b', '--bound', default='threshold',
+#               type=click.Choice(['threshold', 'snr'], 
+#                                 case_sensitive=False),
+#               help='How to frequency bound signals (threshold, snr)')
+# @click.option('-t', '--threshold-fn', 
+#               help='Filename of thresholding file')
+# def diagstat(filename, hits_dir, bound, threshold_fn):
+#     """
+#     Compute diagnostic statistics for each detected signal
+#     """
+#     _analyze_obs.run_bbox_stats(turbo_dat_fns=filename,
+#                                data_dir=filename)
 
 
 @click.command(short_help='Perform Monte Carlo simulations of expected scattering parameters',

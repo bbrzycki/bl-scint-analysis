@@ -1,5 +1,5 @@
 import numpy as np
-from . import ts_statistics
+from . import diag_stats
 
 
 def get_ts_fft(t_d, dt, num_samples, pow=5/3):
@@ -26,7 +26,7 @@ def get_ts_fft(t_d, dt, num_samples, pow=5/3):
     lags = np.fft.fftshift(lags)
 
     noise = (np.random.randn(num_samples) + 1j * np.random.randn(num_samples)) / np.sqrt(2)
-    spectrum = np.fft.fft(ts_statistics.scint_acf(lags, 
+    spectrum = np.fft.fft(diag_stats.scint_acf(lags, 
                                                   t_d / dt * 2**(1/pow), 
                                                   pow=pow)).real
 

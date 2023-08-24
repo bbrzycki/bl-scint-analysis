@@ -2,12 +2,13 @@ import numpy as np
 from scipy import optimize
 from astropy.stats import sigma_clip
 
+import blimpy as bl
 import setigen as stg
 
 from . import factors
 
 
-def t_norm_frame(frame, as_data=None, divide_std=False):
+def normalize_frame(frame, as_data=None, divide_std=False):
     """
     Normalize frame by subtracting out noise background, along time axis.
     Additional option to divide out by the standard deviation of each 
@@ -29,7 +30,7 @@ def t_norm_frame(frame, as_data=None, divide_std=False):
         Normalized frame
     """
     if as_data is not None:
-        # as_data is a Frame from which to get the bounds, to normalize 'frame'
+        # as_data is a Frame from which to get the bounds, to normalize "frame"
         data = as_data.data
     else:
         data = frame.data
@@ -41,17 +42,40 @@ def t_norm_frame(frame, as_data=None, divide_std=False):
     return n_frame
 
 
-def dedrift_frame(frame, drift_rate=None):
+def get_metadata(fn):
+    """
+    Get frame resolution from a spectrogram file without loading the 
+    actual data.
+
+    Parameters
+    ----------
+    fn : str
+        .fil or .h5 filename
+        
+    Returns
+    -------
+    params : dict
+        Dictionary with tchans, df, dt
+    """
+    container = bl.Waterfall(fn, load_data=False).container
+    return {
+        "tchans": container.file_shape[0],
+        "df": abs(container.header["foff"]) * 1e6,
+        "dt": container.header["tsamp"]
+    }
+
+
+def _dedrift_frame(frame, drift_rate=None):
     if drift_rate is None:
-        if 'drift_rate' in frame.metadata:
-            drift_rate = frame.metadata['drift_rate']
+        if "drift_rate" in frame.metadata:
+            drift_rate = frame.metadata["drift_rate"]
         else:
-            raise KeyError('Please specify a drift rate to account for')
+            raise KeyError("Please specify a drift rate to account for")
             
     # Calculate maximum pixel offset and raise an exception if necessary
     max_offset = int(abs(drift_rate) * frame.tchans * frame.dt / frame.df)
     if max_offset >= frame.data.shape[1]:
-        raise ValueError(f'The provided drift rate ({drift_rate} Hz/s) is too high for the frame dimensions')
+        raise ValueError(f"The provided drift rate ({drift_rate} Hz/s) is too high for the frame dimensions")
     tr_data = np.zeros((frame.data.shape[0], frame.data.shape[1] - max_offset))
 
     for i in range(frame.data.shape[0]):
@@ -83,6 +107,6 @@ def dedrift_frame(frame, drift_rate=None):
                                    tr_data,
                                    metadata=frame.metadata,
                                    waterfall=frame.check_waterfall())
-#     if tr_frame.waterfall is not None and 'source_name' in tr_frame.waterfall.header:
-#         tr_frame.waterfall.header['source_name'] += '_dedrifted'
+#     if tr_frame.waterfall is not None and "source_name" in tr_frame.waterfall.header:
+#         tr_frame.waterfall.header["source_name"] += "_dedrifted"
     return tr_frame

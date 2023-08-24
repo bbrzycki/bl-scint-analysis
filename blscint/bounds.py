@@ -363,7 +363,7 @@ def clipped_2D_bounds(frame, min_empty_bins=2, min_clipped=1, peak_prominence=4)
         Dictionary with metadata related to peak-finding. Contains detected
         peak information.
     """
-    n_frame = frame_proc.t_norm_frame(frame)
+    n_frame = frame_proc.normalize_frame(frame)
     clipped_data = sigma_clip(n_frame.data)
     mask_spec = np.sum(clipped_data.mask, axis=0)
     

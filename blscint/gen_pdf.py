@@ -18,7 +18,7 @@ import scipy.linalg
 import setigen as stg
 from setigen.funcs import func_utils
 from . import factors
-from . import ts_statistics
+from . import diag_stats
 
 
 def find_nearest(arr, val):

@@ -4,7 +4,7 @@ import pytz
 import datetime
 
 
-def check_BTL():
+def check_btl():
     # Read public GBT schedule
     url = "https://dss.gb.nrao.edu/schedule/public"
     html = requests.get(url).content 

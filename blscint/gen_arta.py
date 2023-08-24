@@ -21,7 +21,7 @@ import scipy.linalg
 import setigen as stg
 from setigen.funcs import func_utils
 from . import factors
-from . import ts_statistics
+from . import diag_stats
 
 
 def get_rho(t_d, dt, p, pow=5/3):
@@ -50,7 +50,7 @@ def get_rho(t_d, dt, p, pow=5/3):
     # r = stg.func_utils.gaussian(np.arange(1, p + 1),
     #                             0, 
     #                             t_d / dt / factors.hwem_m)
-    r = ts_statistics.scint_acf(np.arange(1, p + 1), t_d / dt, pow=pow)
+    r = diag_stats.scint_acf(np.arange(1, p + 1), t_d / dt, pow=pow)
     return r
 
 
