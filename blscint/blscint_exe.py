@@ -4,7 +4,7 @@ import click
 
 from ._version import __version__
 from . import _analyze_obs
-from .analysis import diagstat
+from . import analysis
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -97,7 +97,8 @@ def synthesize(filename, tscint, sample_number, dt, tchans, df,
     pass
 
 
-cli.add_command(diagstat)
+cli.add_command(analysis.dedoppler)
+cli.add_command(analysis.diagstat)
 cli.add_command(montecarlo)
 cli.add_command(synthesize)
 

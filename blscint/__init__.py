@@ -17,7 +17,7 @@ from .sample_t_d import (
     NESampler, min_d_ss, transition_freqs, central, coverage
 )
 
-from .gen_arta import get_ts_arta)
+from .gen_arta import get_ts_arta
 from .gen_fft import get_ts_fft
 from .gen_pdf import get_ts_pdf
 from .bl_obs import check_btl

@@ -2,6 +2,9 @@ import os
 from pathlib import Path
 import click 
 import collections
+import shutil
+import psutil
+import subprocess
 import tqdm
 
 import numpy as np
@@ -45,10 +48,68 @@ def as_file_list(fns, node_excludes=[], str_excludes=[]):
     return fns
 
 
+@click.command(short_help='Run deDoppler analysis on observations')
+@click.argument('filename', nargs=-1)
+@click.option('-d', '--hits-dir', 
+              help='Target directory for hits files, if different from data directory')
+@click.option('-s', '--snr', default=25,
+              help='SNR detection threshold')
+@click.option('-M', '--max-drift', default=10,
+              help='Maximum drift rate threshold')
+# @click.option('-m', '--min-drift', default=0.00001,
+#               help='Minimum drift rate threshold')
+@click.option('-g', '--gpu/--no-gpu', default=False,
+              help='Option to use GPU for computation')
+def dedoppler(filename, hits_dir, snr, max_drift, gpu):
+    """
+    Run deDoppler analysis on observation files. First tries
+    seticore, then turboSETI. If GPU is not enabled, then use
+    turboSETI.
+    """
+    seticore_path = shutil.which('seticore')
+    turboseti_path = shutil.which('turboSETI')
+
+    for data_fn in filename:
+        if gpu:
+            if seticore_path is not None:
+                print('Running seticore')
+                p = psutil.Popen([seticore_path, 
+                                  data_fn,
+                                  '--output', hits_dir,
+                                  '--snr', str(snr),
+                                  '--max_drift', str(max_drift)],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+            elif turboseti_path is not None:
+                print('Running turboSETI with GPU')
+                p = psutil.Popen([turboseti_path, 
+                                  data_fn,
+                                  '--out_dir', hits_dir,
+                                  '--snr', str(snr),
+                                  '--max_drift', str(max_drift),
+                                  '--gpu', 'y'],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+            else:
+                raise FileNotFoundError('No GPU deDoppler code found in PATH')
+        else:
+            if turboseti_path is not None:
+                print('Running turboSETI')
+                p = psutil.Popen([turboseti_path, 
+                                  data_fn,
+                                  '--out_dir', hits_dir,
+                                  '--snr', str(snr),
+                                  '--max_drift', str(max_drift)],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+            else:
+                raise FileNotFoundError('No deDoppler code found in PATH')
+
+
 @click.command(short_help='Compute diagnostic statistics for each detected signal',
                no_args_is_help=True,)
 @click.argument('filename', nargs=-1)
-@click.option('-hd', '--hits-dir', 
+@click.option('-d', '--hits-dir', 
               help='Directory with .dat hits files, if different from data directory')
 @click.option('-b', '--bound-type', default='threshold',
               type=click.Choice(['threshold', 'snr'], 
@@ -56,9 +117,9 @@ def as_file_list(fns, node_excludes=[], str_excludes=[]):
               help='How to frequency bound signals (threshold, snr)')
 @click.option('-r', '--replace/--no-replace', default=False,
               help='Replace existing diagnostic statistic csv files')
-@click.option('-s', '--save-ts/--no-save-ts', default=False,
+@click.option('--save-ts/--no-save-ts', default=False,
               help='Save time series intensities to file')
-@click.option('-t', '--threshold-fn', 
+@click.option('--threshold-fn', 
               help='Filename of thresholding file')
 def diagstat(filename, 
              hits_dir, 
