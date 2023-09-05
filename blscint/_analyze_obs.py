@@ -260,7 +260,7 @@ def run_bbox_stats(turbo_dat_fns,
                         # print(l,r)
                         tr.stop('bounds')
 
-                        n_frame = frame_processing.normalize_frame(frame, divide_std=divide_std)
+                        n_frame = frame_processing.tnorm(frame, divide_std=divide_std)
                         tr_frame = n_frame.get_slice(l, r)
 
                         # Get time series and normalize
@@ -315,7 +315,7 @@ def plot_snapshot(index, df, divide_std=False):
 
     l, r, metadata = bounds.threshold_baseline_bounds(spec)
 
-    n_frame = frame_processing.normalize_frame(dd_frame, divide_std=divide_std)
+    n_frame = frame_processing.tnorm(dd_frame, divide_std=divide_std)
     tr_frame = n_frame.get_slice(l, r)
 
     # Get time series and normalize
@@ -500,7 +500,7 @@ def plot_bbox_stats(csv_fns,
             else:
                 l, r, _ = bounds.threshold_baseline_bounds(frame.integrate())
 
-            n_frame = frame_processing.normalize_frame(frame, divide_std=divide_std)
+            n_frame = frame_processing.tnorm(frame, divide_std=divide_std)
             tr_frame = n_frame.get_slice(l, r)
             tr_ts = tr_frame.integrate('f')
             tr_ts /= tr_ts.mean()

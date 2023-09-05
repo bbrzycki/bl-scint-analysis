@@ -5,6 +5,7 @@ import click
 from ._version import __version__
 from . import _analyze_obs
 from . import analysis
+from . import synthesize
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -70,37 +71,37 @@ def montecarlo(filename, sample_number, pointing, distance, frequency, velocity,
     pass
 
 
-@click.command(short_help='Make datasets of sythetic scintillated signals',
-               no_args_is_help=True,)
-@click.argument('filename')
-@click.option('-t', '--tscint', multiple=True,
-              help='Scintillation timescales to synthesize')
-@click.option('-n', '--sample-number', 
-              help='Number of samples per scintillation timescale')
-@click.option('--dt', 
-              help='Time resolution of observations')
-@click.option('--tchans', 
-              help='Number of time channels in each observation')
-@click.option('--df', 
-              help='Frequency resolution of observations')
-@click.option('--rfi-csv', 
-              help='Diagstat csv for RFI observations')
-@click.option('--data-csv', 
-              help='Diagstat csv for data observations')
-@click.option('--store-idp', is_flag=True,
-              help='Store intermediate data products')
-def synthesize(filename, tscint, sample_number, dt, tchans, df,
-               rfi_csv, data_csv, store_idp):
-    """
-    Make datasets of sythetic scintillated signals for use in thresholding
-    """
-    pass
+# @click.command(short_help='Make datasets of sythetic scintillated signals',
+#                no_args_is_help=True,)
+# @click.argument('filename')
+# @click.option('-t', '--tscint', multiple=True,
+#               help='Scintillation timescales to synthesize')
+# @click.option('-n', '--sample-number', 
+#               help='Number of samples per scintillation timescale')
+# @click.option('--dt', 
+#               help='Time resolution of observations')
+# @click.option('--tchans', 
+#               help='Number of time channels in each observation')
+# @click.option('--df', 
+#               help='Frequency resolution of observations')
+# @click.option('--rfi-csv', 
+#               help='Diagstat csv for RFI observations')
+# @click.option('--data-csv', 
+#               help='Diagstat csv for data observations')
+# @click.option('--store-idp', is_flag=True,
+#               help='Store intermediate data products')
+# def synthesize(filename, tscint, sample_number, dt, tchans, df,
+#                rfi_csv, data_csv, store_idp):
+#     """
+#     Make datasets of sythetic scintillated signals for use in thresholding
+#     """
+#     pass
 
 
 cli.add_command(analysis.dedoppler)
 cli.add_command(analysis.diagstat)
 cli.add_command(montecarlo)
-cli.add_command(synthesize)
+cli.add_command(synthesize.synthesize_dataset)
 
 if __name__ == '__main__':
     cli()

@@ -6,9 +6,10 @@ import blimpy as bl
 import setigen as stg
 
 from . import factors
+from . import bounds
 
 
-def normalize_frame(frame, as_data=None, divide_std=False):
+def tnorm(frame, as_data=None, divide_std=False):
     """
     Normalize frame by subtracting out noise background, along time axis.
     Additional option to divide out by the standard deviation of each 
@@ -42,6 +43,27 @@ def normalize_frame(frame, as_data=None, divide_std=False):
     return n_frame
 
 
+def extract_ts(frame, bound='threshold', divide_std=True):
+    """
+    Extract normalized time series from dedrifted frame with centered signal, 
+    as well as frequency bounds as a tuple.
+    """
+    spec = frame.integrate()
+
+    if bound == 'threshold':
+        l, r, _ = bounds.threshold_baseline_bounds(spec)
+    elif bound == 'snr':
+        l, r, _ = bounds.snr_bounds(spec)
+    else:
+        raise ValueError("Bound should be either 'threshold' or 'snr'")
+    
+    n_frame = tnorm(frame, divide_std=divide_std)
+    tr_frame = n_frame.get_slice(l, r)
+    ts = tr_frame.integrate('f')
+    ts = ts / np.mean(ts)
+    return ts, (l, r)
+
+
 def get_metadata(fn):
     """
     Get frame resolution from a spectrogram file without loading the 
@@ -57,7 +79,7 @@ def get_metadata(fn):
     params : dict
         Dictionary with tchans, df, dt
     """
-    container = bl.Waterfall(fn, load_data=False).container
+    container = bl.Waterfall(str(fn), load_data=False).container
     return {
         "tchans": container.file_shape[0],
         "df": abs(container.header["foff"]) * 1e6,

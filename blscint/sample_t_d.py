@@ -139,7 +139,7 @@ class NESampler(object):
 
         self.raw_data = NEData(t_d=raw_t_ds, nu_d=raw_nu_ds)
             
-    def save_pickle(self, filename):
+    def save(self, filename):
         """
         Save entire sampler (including NE2001 calculations) as a pickled file (.pickle).
         """
@@ -147,10 +147,10 @@ class NESampler(object):
             pickle.dump(self, f)
 
     @classmethod
-    def load_pickle(cls, filename):
+    def load(cls, filename):
         """
         Load sampler object from a pickled file (.pickle), 
-        created with NESampler.save_pickle.
+        created with NESampler.save.
         """
         with open(filename, 'rb') as f:
             sampler = pickle.load(f)

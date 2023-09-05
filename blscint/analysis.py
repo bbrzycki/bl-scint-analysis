@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 import click 
 import collections
@@ -48,19 +49,22 @@ def as_file_list(fns, node_excludes=[], str_excludes=[]):
     return fns
 
 
-@click.command(short_help='Run deDoppler analysis on observations')
+@click.command(name='dedoppler',
+               short_help='Run deDoppler analysis on observations')
 @click.argument('filename', nargs=-1)
-@click.option('-d', '--hits-dir', 
+@click.option('-d', '--hits-dir', default=None,
               help='Target directory for hits files, if different from data directory')
-@click.option('-s', '--snr', default=25,
+@click.option('-s', '--snr', default=25, show_default=True,
               help='SNR detection threshold')
-@click.option('-M', '--max-drift', default=10,
+@click.option('-M', '--max-drift', default=10, show_default=True,
               help='Maximum drift rate threshold')
-# @click.option('-m', '--min-drift', default=0.00001,
+# @click.option('-m', '--min-drift', default=0.00001, show_default=True,
 #               help='Minimum drift rate threshold')
-@click.option('-g', '--gpu/--no-gpu', default=False,
-              help='Option to use GPU for computation')
-def dedoppler(filename, hits_dir, snr, max_drift, gpu):
+@click.option('-g', '--gpu/--no-gpu', default=False, 
+              help='Use GPU for computation')
+@click.option('-t', '--turbo', is_flag=True, default=False, 
+              help='Force use of turboSETI')
+def dedoppler(filename, hits_dir=None, snr=25, max_drift=10, gpu=False, turbo=False):
     """
     Run deDoppler analysis on observation files. First tries
     seticore, then turboSETI. If GPU is not enabled, then use
@@ -69,49 +73,73 @@ def dedoppler(filename, hits_dir, snr, max_drift, gpu):
     seticore_path = shutil.which('seticore')
     turboseti_path = shutil.which('turboSETI')
 
+    seticore_used = False
+
     for data_fn in filename:
+        data_path = Path(data_fn)
+        if hits_dir is None:
+            hits_dir_path = data_path.parent
+        else:
+            hits_dir_path = Path(hits_dir)
         if gpu:
-            if seticore_path is not None:
+            if seticore_path is not None and not turbo:
                 print('Running seticore')
-                p = psutil.Popen([seticore_path, 
-                                  data_fn,
-                                  '--output', hits_dir,
-                                  '--snr', str(snr),
-                                  '--max_drift', str(max_drift)],
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT)
+                seticore_used = True
+                command = [
+                    str(seticore_path), 
+                    str(data_path),
+                    '--output', str(hits_dir_path) + '/',
+                    '--snr', str(snr),
+                    '--max_drift', str(max_drift),
+                ]
             elif turboseti_path is not None:
                 print('Running turboSETI with GPU')
-                p = psutil.Popen([turboseti_path, 
-                                  data_fn,
-                                  '--out_dir', hits_dir,
-                                  '--snr', str(snr),
-                                  '--max_drift', str(max_drift),
-                                  '--gpu', 'y'],
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT)
+                command = [
+                    str(turboseti_path), 
+                    str(data_path),
+                    '--out_dir', str(hits_dir_path) + '/',
+                    '--snr', str(snr),
+                    '--max_drift', str(max_drift),
+                    '--gpu', 'y',
+                ]
             else:
                 raise FileNotFoundError('No GPU deDoppler code found in PATH')
         else:
             if turboseti_path is not None:
                 print('Running turboSETI')
-                p = psutil.Popen([turboseti_path, 
-                                  data_fn,
-                                  '--out_dir', hits_dir,
-                                  '--snr', str(snr),
-                                  '--max_drift', str(max_drift)],
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT)
+                command = [
+                    str(turboseti_path), 
+                    str(data_path),
+                    '--out_dir', str(hits_dir_path) + '/',
+                    '--snr', str(snr),
+                    '--max_drift', str(max_drift),
+                ]
             else:
                 raise FileNotFoundError('No deDoppler code found in PATH')
+            
+        p = psutil.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=1,
+            universal_newlines=True
+        )
+        print(f"Subprocess PID: {p.pid} ({data_fn})\n")
+
+        for line in p.stdout:
+            sys.stdout.write(line)
+
+        if seticore_used and 'unable' in line:
+            raise RuntimeError(line)
 
 
-@click.command(short_help='Compute diagnostic statistics for each detected signal',
+@click.command(name='diagstat',
+               short_help='Compute diagnostic statistics for each detected signal',
                no_args_is_help=True,)
 @click.argument('filename', nargs=-1)
-@click.option('-d', '--hits-dir', 
+@click.option('-d', '--hits-dir', default=None, 
               help='Directory with .dat hits files, if different from data directory')
-@click.option('-b', '--bound-type', default='threshold',
+@click.option('-b', '--bound', default='threshold', show_default=True,
               type=click.Choice(['threshold', 'snr'], 
                                 case_sensitive=False),
               help='How to frequency bound signals (threshold, snr)')
@@ -122,11 +150,11 @@ def dedoppler(filename, hits_dir, snr, max_drift, gpu):
 @click.option('--threshold-fn', 
               help='Filename of thresholding file')
 def diagstat(filename, 
-             hits_dir, 
-             bound_type, 
-             replace, 
-             save_ts,
-             threshold_fn, 
+             hits_dir=None, 
+             bound='threshold', 
+             replace=False, 
+             save_ts=False,
+             threshold_fn=None, 
              init_fchans=256,
              divide_std=True):
     """
@@ -137,12 +165,17 @@ def diagstat(filename,
     for data_fn in filename:
         data_path = Path(data_fn)
         click.echo(f"Working on {data_path}")
-        hits_path = Path(hits_dir) / f"{data_path.stem}.dat"
-        csv_path = Path(hits_dir) / f"{data_path.stem}_diagstat.csv"
-        tsdump_path = Path(hits_dir) / f"{data_path.stem}_tsdump.npy"
+
+        if hits_dir is None:
+            hits_dir_path = data_path.parent
+        else:
+            hits_dir_path = Path(hits_dir)
+        hits_path = hits_dir_path / f"{data_path.stem}.dat"
+        csv_path = hits_dir_path / f"{data_path.stem}.diagstat.csv"
+        tsdump_path = hits_dir_path / f"{data_path.stem}.tsdump.npy"
 
         # Skip if csv already exists
-        if not csv_path.exists or replace:
+        if not csv_path.exists() or replace:
             hp = hit_parser.HitParser(hits_path)
 
             if save_ts:
@@ -178,25 +211,18 @@ def diagstat(filename,
                 # so skip it
                 if l is not None:
                     try:
-                        if bound_type == 'snr':
-                            l, r, _ = bounds.snr_bounds(spec, snr=5)
-                        else:
-                            l, r, _ = bounds.threshold_baseline_bounds(spec)
-
-                        n_frame = frame_processing.normalize_frame(frame, 
-                                                                   divide_std=divide_std)
-                        tr_frame = n_frame.get_slice(l, r)
-
-                        # Get time series and normalize
-                        ts = tr_frame.integrate('f')
-                        ts = ts / np.mean(ts)
+                        ts, (l, r) = frame_processing.extract_ts(frame,
+                                                                 bound=bound,
+                                                                 divide_std=divide_std)
                         if save_ts:
                             tsdump[idx, :] = ts
 
-                        ts_stats = diag_stats.get_diag_stats(ts)
-                        ts_stats['fchans'] = fchans
-                        ts_stats['l'] = l
-                        ts_stats['r'] = r
+                        ts_stats = diag_stats.get_diag_stats(ts, dt=frame.dt)
+                        ts_stats.update({
+                            'fchans': fchans,
+                            'l': l,
+                            'r': r,
+                        })
                     except IndexError:
                         ts_stats = diag_stats.empty_diag_stats(fchans)
 
@@ -208,14 +234,15 @@ def diagstat(filename,
                 hp.df[stat] = ts_stats_dict[stat]
 
             # Save absolute path to dataframe
-            hp.df['data_fn'] = data_path.resolve()
+            hp.df['data_fn'] = str(data_path.resolve())
             hp.df['node'] = data_path.name[:5]
-            hp.df.to_csv(csv_path, index=False)
 
             # Save time series intensities for all signals if option enabled
             if save_ts:
-                hp.df['tsdump_fn'] = tsdump_path.resolve()
+                hp.df['tsdump_fn'] = str(tsdump_path.resolve())
                 np.save(tsdump_path, tsdump)
+
+            hp.df.to_csv(csv_path, index=False)
         csv_path_list.append(csv_path)
     return csv_path_list
 

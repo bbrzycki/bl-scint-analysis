@@ -27,9 +27,12 @@ def acf(ts, remove_spike=False):
     return autocorr(ts, remove_spike=remove_spike)
     
 
-def get_diag_stats(ts, pow=5/3, use_triangle=True):
+def get_diag_stats(ts, dt=None, pow=5/3, use_triangle=True):
     """
     Calculate statistics based on normalized time series (to mean 1).
+
+    If the time resolution dt is given, then scale ACF-fit pixel parameters to 
+    the time resolution.
     """
     diag_stats = {}
     
@@ -52,9 +55,12 @@ def get_diag_stats(ts, pow=5/3, use_triangle=True):
         popt = fit_acf(ac, pow=pow, use_triangle=use_triangle)
     except RuntimeError:
         popt = [np.nan, np.nan, np.nan]
-    diag_stats['acf_t_d'] = popt[0]
-    diag_stats['acf_A'] = popt[1]
-    diag_stats['acf_W'] = popt[2]
+    diag_stats['fit_t_d'] = popt[0]
+    diag_stats['fit_A'] = popt[1]
+    diag_stats['fit_W'] = popt[2]
+
+    if dt is not None:
+        diag_stats['fit_t_d'] = diag_stats['fit_t_d'] * dt
     
     return diag_stats
 
@@ -84,9 +90,9 @@ def empty_diag_stats(fchans):
         'fchans': fchans,
         'l': None,
         'r': None,
-        'acf_t_d': None,
-        'acf_A': None,
-        'acf_W': None,
+        'fit_t_d': None,
+        'fit_A': None,
+        'fit_W': None,
     }
     # for label, pow in [('sq', 2), ('k', 5/3)]:
     #     for use_triangle in [True, False]:
@@ -142,15 +148,14 @@ def fit_acf(acf, pow=5/3, use_triangle=True, remove_spike=False):
                                  acf[1:],
                                  bounds=([0], [len(acf)]))
         return [popt[0], 1, 0]
-        return [popt[0] + 1, 1, 0]
+        # return [popt[0] + 1, 1, 0]
     else:
-        # t_acf_func = acf_func
         t_acf_func = noisy_scint_acf_gen(pow=pow, 
                                          use_triangle=use_triangle)
         popt, a = optimize.curve_fit(t_acf_func, 
-                                 np.arange(len(acf)),
-                                 acf,
-                                 bounds=([0, 0, 0], [len(acf), 1, 1]))
+                                     np.arange(len(acf)),
+                                     acf,
+                                     bounds=([0, 0, 0], [len(acf), 1, 1]))
         return popt
     
     
