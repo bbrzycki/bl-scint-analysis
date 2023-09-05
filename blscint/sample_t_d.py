@@ -13,7 +13,7 @@ except:
 import scipy.stats
 
 from astropy.stats import sigma_clip
-from scipy.stats import median_absolute_deviation
+from scipy.stats import median_abs_deviation
 
 from . import ne2001
 
@@ -74,14 +74,14 @@ def central(t_ds, p):
 
 
 def visualize_mc(t_ds):
-    print(f'without sigmaclip: Med,std,mad: {np.median(t_ds):.1f}+-{np.std(t_ds):.1f}: {median_absolute_deviation(t_ds):.1f}')
-    print(f'coverage: {coverage(t_ds, start=np.median(t_ds)-median_absolute_deviation(t_ds), stop=np.median(t_ds)+median_absolute_deviation(t_ds))}')
+    print(f'without sigmaclip: Med,std,mad: {np.median(t_ds):.1f}+-{np.std(t_ds):.1f}: {median_abs_deviation(t_ds):.1f}')
+    print(f'coverage: {coverage(t_ds, start=np.median(t_ds)-median_abs_deviation(t_ds), stop=np.median(t_ds)+median_abs_deviation(t_ds))}')
     t_ds = sigma_clip(t_ds, masked=False)
     
     plt.hist(t_ds, bins=25)
     plt.xlabel('Scintillation timescale (s)')
     plt.ylabel('Counts')
-    plt.title(f'Med,std,mad: {np.median(t_ds):.1f}+-{np.std(t_ds):.1f}: {median_absolute_deviation(t_ds):.1f}')
+    plt.title(f'Med,std,mad: {np.median(t_ds):.1f}+-{np.std(t_ds):.1f}: {median_abs_deviation(t_ds):.1f}')
 #     plt.legend()
     
     plt.tight_layout()
@@ -320,8 +320,8 @@ class NEData(object):
             mode = (bins[mode_idx] + bins[mode_idx + 1]) / 2
             
             print(f"Median: {np.median(data):.3} {self.units[quantity]}")
-            print(f"MAD: {median_absolute_deviation(data):.3} {self.units[quantity]}")
-            print(f'Coverage: {coverage(data, start=np.median(data)-median_absolute_deviation(data), stop=np.median(data)+median_absolute_deviation(data)):.3}')
+            print(f"MAD: {median_abs_deviation(data):.3} {self.units[quantity]}")
+            print(f'Coverage: {coverage(data, start=np.median(data)-median_abs_deviation(data), stop=np.median(data)+median_abs_deviation(data)):.3}')
             print(f"Std: {np.std(data):.3} {self.units[quantity]}")
             print(f"Mode: {mode:.3} {self.units[quantity]}")
             
@@ -351,8 +351,8 @@ class NEData(object):
             plt.axvline(np.median(data), ls='-', c='k')
             plt.axvline(np.quantile(data, 0.25), ls='--', c='k')
             plt.axvline(np.quantile(data, 0.75), ls='--', c='k')
-            plt.axvline(np.median(data)-median_absolute_deviation(data), ls=':', c='b')
-            plt.axvline(np.median(data)+median_absolute_deviation(data), ls=':', c='b')
+            plt.axvline(np.median(data)-median_abs_deviation(data), ls=':', c='b')
+            plt.axvline(np.median(data)+median_abs_deviation(data), ls=':', c='b')
             plt.axvline(mode, ls='-', c='g')
             plt.title(f'{np.median(data):.3}({np.quantile(data, 0.25):.3}, {np.quantile(data, 0.75):.3}) {self.units[quantity]} (mode: {mode:.3} {self.units[quantity]})')
         plt.tight_layout()
