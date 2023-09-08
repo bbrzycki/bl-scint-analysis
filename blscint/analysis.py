@@ -183,7 +183,7 @@ def diagstat(filename,
                                  np.nan)
 
             ts_stats_dict = collections.defaultdict(list)
-            for idx, row in tqdm.tqdm(hp.df.iterrows()):
+            for idx, row in tqdm.tqdm(hp.df.iterrows(), total=hp.df.shape[0]):
                 found_peak = False
                 fchans = init_fchans 
                 while not found_peak:
