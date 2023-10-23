@@ -70,7 +70,7 @@ def bpdf(g1, g2, ac):
         return 1/(1-ac)*np.exp(-(g1+g2)/(1-ac))*i_factor
 
     
-def get_ts_pdf(t_d, dt, num_samples, max_g=5, steps=1000):
+def get_ts_pdf(t_d, dt, num_samples, max_g=5, steps=1000, seed=None):
     """
     Produce time series data via bivariate pdf for the gain. With a maximum gain `max_g`
     and number of potential gain levels within [0, `max_g`].
@@ -87,12 +87,16 @@ def get_ts_pdf(t_d, dt, num_samples, max_g=5, steps=1000):
         Maximum possible gain (for computation)
     steps : int, optional
         Number of possible gain levels within [0, `max_g`] (for computation)
+    seed : None, int, Generator, optional
+        Random seed or seed generator
 
     Returns
     -------
     Y : np.ndarray
         Final synthetic scintillated time series (Y values)
     """
+    rng = np.random.default_rng(seed) 
+
     ac_arr = stg.func_utils.gaussian(np.arange(0, steps),
                                      0, 
                                      t_d / dt / factors.hwem_m)
@@ -107,7 +111,7 @@ def get_ts_pdf(t_d, dt, num_samples, max_g=5, steps=1000):
 
     init_g = max_g + 1
     while init_g > max_g:
-        init_g = np.random.exponential()
+        init_g = rng.exponential()
     ts_idx[0] = find_nearest(possible_g, init_g)
     
     update_freq = int(np.ceil(t_d / dt))
@@ -123,7 +127,7 @@ def get_ts_pdf(t_d, dt, num_samples, max_g=5, steps=1000):
 
         p = raw_p / np.sum(raw_p)
         try:
-            ts_idx[i] = np.random.choice(np.arange(steps), p=p)
+            ts_idx[i] = rng.choice(np.arange(steps), p=p)
         except:
 #             print(F_2g[i])
             print(i)

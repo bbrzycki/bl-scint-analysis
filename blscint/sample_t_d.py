@@ -117,7 +117,9 @@ class NESampler(object):
     """
     def __init__(self, l, b, 
                  d=(0.01, 20),
-                 delta_d=0.01):
+                 delta_d=0.01,
+                 seed=None):
+        self.rng = np.random.default_rng(seed)
         self.l, self.b = l, b
         self.delta_d = delta_d
         
@@ -221,19 +223,19 @@ class NESampler(object):
             if weight_by_flux:
                 d_rel_prob = d_rel_prob / self.d[d_idx]**2
             d_prob = d_rel_prob / np.sum(d_rel_prob)
-            sampled_idx = np.random.choice(d_idx, size=n, p=d_prob)
+            sampled_idx = self.rng.choice(d_idx, size=n, p=d_prob)
                  
             sampled_t_ds = self.raw_data.t_d[sampled_idx]
             sampled_nu_ds = self.raw_data.nu_d[sampled_idx]
             sampled_ds = self.d[sampled_idx]
         
         try:
-            f = np.random.uniform(f[0], f[1], n)
+            f = self.rng.uniform(f[0], f[1], n)
         except (TypeError, IndexError):
             f = np.repeat(f, n)
 
         try:
-            v = np.random.uniform(v[0], v[1], n)
+            v = self.rng.uniform(v[0], v[1], n)
         except (TypeError, IndexError):
             v = np.repeat(v, n)
             

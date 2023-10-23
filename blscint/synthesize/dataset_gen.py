@@ -35,17 +35,13 @@ class SignalGenerator(object):
                      pow=5/3, 
                      divide_std=True,
                      file_stem=None, 
-                     save_ts=False,
-                     seed=None):
+                     save_ts=False):
         """
         Create dataset of synthetic scintillated signals, and save
         statistic details to csv. 
 
         gen_method is either 'arta' or 'fft'.
         """
-        if seed is not None:
-            self.rng = np.random.default_rng(seed)
-
         if file_stem is not None:
             stem_path = Path(file_stem)
             csv_path = stem_path.parent / f"{stem_path.name}.diagstat.csv"
@@ -62,12 +58,14 @@ class SignalGenerator(object):
                                             self.frame_metadata['dt'],
                                             self.frame_metadata['tchans'],
                                             p=self.frame_metadata['tchans']//4,
-                                            pow=pow)
+                                            pow=pow,
+                                            seed=self.rng)
             elif gen_method == 'fft':
                 ts = synthesize.get_ts_fft(t_d,
                                            self.frame_metadata['dt'],
                                            self.frame_metadata['tchans'],
-                                           pow=pow)
+                                           pow=pow,
+                                           seed=self.rng)
             else:
                 raise ValueError("Generation method must be either 'arta' or 'fft'")
             l = r = fchans = None
@@ -76,7 +74,8 @@ class SignalGenerator(object):
                 frame = stg.Frame(fchans=256,
                                   tchans=self.frame_metadata['tchans'],
                                   df=self.frame_metadata['df'],
-                                  dt=self.frame_metadata['dt'])
+                                  dt=self.frame_metadata['dt'],
+                                  seed=self.rng)
                 frame.add_noise_from_obs()
                 signal = frame.add_signal(stg.constant_path(f_start=frame.get_frequency(128), 
                                                             drift_rate=0),

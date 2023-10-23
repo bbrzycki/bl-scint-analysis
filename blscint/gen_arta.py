@@ -84,7 +84,7 @@ def psi(r):
     return scipy.linalg.toeplitz(np.concatenate([[1.], r[:-1]]))
 
 
-def build_Z(r, T):
+def build_Z(r, T, seed=None):
     """
     Build full baseline Z array.
 
@@ -94,12 +94,16 @@ def build_Z(r, T):
         Array of autocorrelation guesses, starting with lag 1
     T : int
         Final length of array Z, should be greater than p
+    seed : None, int, Generator, optional
+        Random seed or seed generator
 
     Returns
     -------
     Z : np.ndarray
         Array of Z values, as in ARTA
     """
+    rng = np.random.default_rng(seed)
+    
     # T is final length of array Z, should be greater than p
     # r is the array of guesses to get close to desired autocorrelations
     # Returns full Z array
@@ -118,7 +122,7 @@ def build_Z(r, T):
 #     print(np.linalg.eigvalsh(covariance))
     _ = np.linalg.cholesky(covariance)
 
-    Z[:p] = np.random.multivariate_normal(np.zeros(p), covariance)
+    Z[:p] = rng.multivariate_normal(np.zeros(p), covariance)
     alpha = np.dot(r, np.linalg.inv(covariance))
 #     print(np.abs(np.roots([1.]+list(-alpha))))
     try:
@@ -133,7 +137,7 @@ def build_Z(r, T):
         raise RuntimeError('Variance of epsilon is negative!')
 
     for i in range(p, T):
-        epsilon = np.random.normal(0, np.sqrt(variance))
+        epsilon = rng.normal(0, np.sqrt(variance))
         Z[i] = np.dot(alpha, Z[i-p:i][::-1]) + epsilon
     return Z
 
