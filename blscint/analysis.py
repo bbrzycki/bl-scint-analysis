@@ -1,5 +1,6 @@
 import os
 import sys
+import glob
 from pathlib import Path
 import click 
 import collections
@@ -25,7 +26,7 @@ def as_file_list(fns, node_excludes=[], str_excludes=[]):
     Parameters
     ----------
     fns : list
-        List of files or patterns (i.e. for use with glob)
+        List of files or patterns, as strings or pathlib.Paths
     node_excludes : list, optional
         List which nodes should be excluded from analysis, particularly
         for overlapped spectrum
@@ -39,14 +40,21 @@ def as_file_list(fns, node_excludes=[], str_excludes=[]):
     """
     if not isinstance(fns, list):
         fns = [fns]
-    fns = [fn for exp_fns in fns for fn in glob.glob(exp_fns)]
-    fns.sort()
+    
+    paths = []
+    for pattern in fns:
+        if str(pattern)[0] == "/":
+            paths.extend(Path("/").glob(str(pattern)[1:]))
+        else:
+            paths.extend(Path().glob(str(pattern)))
+    
+    paths.sort()
     for exclude_str in node_excludes:
         exclude_str = f"{int(exclude_str):02d}"
-        fns = [fn for fn in fns if f"blc{exclude_str}" not in fn]
+        paths = [fn for fn in paths if f"blc{exclude_str}" not in fn.name]
     for exclude_str in str_excludes:
-        fns = [fn for fn in fns if exclude_str not in fn]
-    return fns
+        paths = [fn for fn in paths if exclude_str not in fn.name]
+    return paths
 
 
 @click.command(name='dedoppler',
