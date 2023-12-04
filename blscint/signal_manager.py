@@ -53,7 +53,6 @@ class SignalManager(object):
                                 'Scintillation Timescale Fit (s)'],
                         statistic_bounds=None,
                         # legend_loc=[1, 2, 1, 1],
-                        *args,
                         **kwargs):
         """
         Plot histograms of signal statistics.

@@ -6,7 +6,7 @@ import pandas as pd
 import tqdm
 import setigen as stg
 
-from blscint import synthesize
+from blscint import simulations
 from blscint import frame_processing
 from blscint import diag_stats
 
@@ -29,13 +29,15 @@ class SignalGenerator(object):
                      t_d, 
                      n=1000, 
                      snr=25,
+                     bw=2,
                      injected=False,
                      bound='threshold',
                      gen_method='arta',
                      pow=5/3, 
                      divide_std=True,
                      file_stem=None, 
-                     save_ts=False):
+                     save_ts=False,
+                     p=None):
         """
         Create dataset of synthetic scintillated signals, and save
         statistic details to csv. 
@@ -54,18 +56,20 @@ class SignalGenerator(object):
                              np.nan)
         for idx in tqdm.trange(n):
             if gen_method == 'arta':
-                ts = synthesize.get_ts_arta(t_d, 
+                if p is None:
+                    p = self.frame_metadata['tchans'] // 4
+                ts = simulations.get_ts_arta(t_d, 
+                                             self.frame_metadata['dt'],
+                                             self.frame_metadata['tchans'],
+                                             p=p,
+                                             pow=pow,
+                                             seed=self.rng)
+            elif gen_method == 'fft':
+                ts = simulations.get_ts_fft(t_d,
                                             self.frame_metadata['dt'],
                                             self.frame_metadata['tchans'],
-                                            p=self.frame_metadata['tchans']//4,
                                             pow=pow,
                                             seed=self.rng)
-            elif gen_method == 'fft':
-                ts = synthesize.get_ts_fft(t_d,
-                                           self.frame_metadata['dt'],
-                                           self.frame_metadata['tchans'],
-                                           pow=pow,
-                                           seed=self.rng)
             else:
                 raise ValueError("Generation method must be either 'arta' or 'fft'")
             l = r = fchans = None
@@ -79,30 +83,38 @@ class SignalGenerator(object):
                 frame.add_noise_from_obs()
                 signal = frame.add_signal(stg.constant_path(f_start=frame.get_frequency(128), 
                                                             drift_rate=0),
-                                        ts * frame.get_intensity(snr=snr),
-                                        stg.sinc2_f_profile(width=2 * frame.df),
-                                        stg.constant_bp_profile(level=1))
+                                            ts * frame.get_intensity(snr=snr),
+                                            stg.sinc2_f_profile(width=bw*frame.df, 
+                                                                width_mode="crossing"),
+                                            stg.constant_bp_profile(level=1))
 
-                ts, (l, r) = frame_processing.extract_ts(frame,
-                                                         bound=bound,
-                                                         divide_std=divide_std)
-                if save_ts:
+                try:
+                    ts, (l, r) = frame_processing.extract_ts(frame,
+                                                             bound=bound,
+                                                             divide_std=divide_std,
+                                                             as_data=frame.get_slice(0, frame.fchans//2-bw//2))
+                except IndexError:
+                    # Signal not bound by bounding algorithm 
+                    ts = None 
+            
+                if save_ts and ts is not None:
                     tsdump[idx, :] = ts
                 fchans = frame.fchans
                 
-            ts_stats = diag_stats.get_diag_stats(ts, 
-                                                 dt=self.frame_metadata['dt'])
-            ts_stats.update({
-                'fchans': fchans,
-                't_d': t_d,
-                'l': l,
-                'r': r,
-                'SNR': snr,
-                'DriftRate': 0,
-            })
+            if ts is not None:
+                ts_stats = diag_stats.get_diag_stats(ts, 
+                                                    dt=self.frame_metadata['dt'])
+                ts_stats.update({
+                    'fchans': fchans,
+                    't_d': t_d,
+                    'l': l,
+                    'r': r,
+                    'SNR': snr,
+                    'DriftRate': 0,
+                })
 
-            for stat in ts_stats:
-                ts_stats_dict[stat].append(ts_stats[stat])
+                for stat in ts_stats:
+                    ts_stats_dict[stat].append(ts_stats[stat])
 
         # Set statistic columns
         for stat in ts_stats_dict:

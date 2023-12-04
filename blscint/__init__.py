@@ -5,7 +5,7 @@ from .ne2001 import (
 
 from .factors import hwhm_f, fwhm_f, hwem_f, fwem_f
 
-from .frame_processing import tnorm, get_metadata
+from .frame_processing import tnorm, extract_ts, get_metadata
 
 from .bounds import (
     plot_bounds, polyfit_bounds, threshold_bounds, threshold_baseline_bounds,
@@ -17,14 +17,10 @@ from .sample_t_d import (
     NESampler, min_d_ss, transition_freqs, central, coverage
 )
 
-from .synthesize import (
-    get_ts_arta, get_ts_fft, get_ts_pdf, SignalGenerator, synthesize_dataset
+from .simulations import (
+    get_ts_arta, get_ts_fft, get_ts_pdf, SignalGenerator, synthesize_dataset,
+    c95, hl07, rd18
 )
-
-# from .gen_arta import get_ts_arta
-# from .gen_fft import get_ts_fft
-# from .gen_pdf import get_ts_pdf
-
 
 from .bl_obs import check_btl
 
@@ -38,8 +34,6 @@ from .hit_parser import HitParser
 from .analysis import as_file_list, diagstat
 
 from .signal_manager import SignalManager
-
-
 
 # from .dataframe import *
 # from ._analyze_obs import *

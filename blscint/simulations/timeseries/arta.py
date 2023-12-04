@@ -187,7 +187,7 @@ def get_Y(Z, dist='exp'):
     return Y / np.mean(Y)
 
 
-def get_ts_arta(t_d, dt, num_samples, p=2, pow=5/3, dist='exp'):
+def get_ts_arta(t_d, dt, num_samples, p=2, pow=5/3, dist='exp', seed=None):
     """
     Produce time series data via an ARTA process. 
 
@@ -203,14 +203,17 @@ def get_ts_arta(t_d, dt, num_samples, p=2, pow=5/3, dist='exp'):
         Number of lags to calculate
     pow : float, optional
         Exponent for ACF fit, either 5/3 or 2 (arising from phase structure function) 
+    seed : None, int, Generator, optional
+        Random seed or seed generator
 
     Returns
     -------
     Y : np.ndarray
         Final synthetic scintillated time series (Y values)
     """
+    rng = np.random.default_rng(seed)
     rho = get_rho(t_d, dt, p, pow)
-    Z = build_Z(rho, num_samples)
+    Z = build_Z(rho, num_samples, seed=rng)
     Y = get_Y(Z, dist)
     return Y
 

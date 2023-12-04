@@ -12,10 +12,12 @@ entry_points = {
 with open("requirements.txt", "r") as f:
     install_requires = f.readlines()
 
-exec(open('blscint/_version.py').read())
+version_dict = {}
+with open("blscint/_version.py") as fp:
+    exec(fp.read(), version_dict)
 setuptools.setup(
     name='blscint',
-    version=__version__,
+    version=version_dict["__version__"],
     author='Bryan Brzycki',
     author_email='bbrzycki@berkeley.edu',
     description='SETI scintillation utilities',
