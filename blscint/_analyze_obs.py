@@ -18,7 +18,7 @@ from turbo_seti.find_doppler.find_doppler import FindDoppler
 from . import bounds
 from . import dataframe
 from . import frame_processing
-from . import ts_statistics
+from . import diag_stats
 from . import gen_arta
 
 import jort
@@ -83,7 +83,7 @@ def run_turboseti(obs_fns, min_drift=0.00001, max_drift=5, snr=10, out_dir='.', 
     turbo_dat_list : list
         List of all turboseti .dat files created
     """
-    p = jort.Profiler(logname='turboseti.log')
+    tr = jort.Tracker()
     turbo_dat_list = []
     for data_fn in as_file_list(obs_fns):
        
@@ -102,7 +102,7 @@ def run_turboseti(obs_fns, min_drift=0.00001, max_drift=5, snr=10, out_dir='.', 
             gpu_backend=True
         turbo_dat_fn = f"{out_dir}/{os.path.splitext(os.path.basename(data_fn))[0]}.dat"
         if not os.path.exists(turbo_dat_fn) or replace_existing:
-            p.start('turboseti')
+            tr.start('turboseti')
             find_seti_event = FindDoppler(data_fn,
                                           min_drift=min_drift,
                                           max_drift=max_drift,
@@ -113,8 +113,8 @@ def run_turboseti(obs_fns, min_drift=0.00001, max_drift=5, snr=10, out_dir='.', 
                                           precision=1)
             find_seti_event.search()
             turbo_dat_list.append(turbo_dat_fn)
-            p.stop('turboseti')
-    p.report()
+            tr.stop('turboseti')
+    tr.report()
     return turbo_dat_list
 
 
@@ -207,7 +207,7 @@ def run_bbox_stats(turbo_dat_fns,
     csv_list : list
         List of all .csv files created
     """
-    p = jort.Profiler(logname='bounding_box.log', verbose=1)
+    tr = jort.Tracker()
     csv_list = []
     for turbo_dat_fn in as_file_list(turbo_dat_fns):
         print(f"Working on {turbo_dat_fn}")
@@ -225,55 +225,55 @@ def run_bbox_stats(turbo_dat_fns,
                 fchans = 256
                 while not found_peak:
                     try:
-                        p.start('frame_init')
+                        tr.start('frame_init')
                         frame = dataframe.turbo_centered_frame(index, df, data_fn, fchans, **param_dict)
                         frame = stg.dedrift(frame)
-                        p.stop('frame_init')
+                        tr.stop('frame_init')
                                 
                         spec = frame.integrate()
 
-                        p.start('polyfit')
+                        tr.start('polyfit')
                         l, r, metadata = bounds.polyfit_bounds(spec, deg=1, snr_threshold=10)
-                        p.stop('polyfit')
+                        tr.stop('polyfit')
 
                         found_peak = True
                     except ValueError:
                         # If no fit found, or out of bounds
                         fchans *= 2
-                        p.remove('polyfit')
+                        tr.remove('polyfit')
                     except IndexError:
                         # Broadband interferer
                         l, r, metadata = None, None, None
                         ts_stats = empty_ts_stats(fchans)
-                        p.remove('polyfit')
+                        tr.remove('polyfit')
                         break
 
                 # If IndexError... was probably not narrowband signal,
                 # so just skip adding it in
                 if l is not None:
                     try:
-                        p.start('bounds')
+                        tr.start('bounds')
                         if bound_type == 'snr':
                             l, r, metadata = bounds.snr_bounds(spec, snr=5)
                         else:
                             l, r, metadata = bounds.threshold_baseline_bounds(spec)
                         # print(l,r)
-                        p.stop('bounds')
+                        tr.stop('bounds')
 
-                        n_frame = frame_processing.t_norm_frame(frame, divide_std=divide_std)
+                        n_frame = frame_processing.tnorm(frame, divide_std=divide_std)
                         tr_frame = n_frame.get_slice(l, r)
 
                         # Get time series and normalize
                         ts = tr_frame.integrate('f')
                         ts = ts / np.mean(ts)
 
-                        ts_stats = ts_statistics.get_stats(ts)
+                        ts_stats = diag_stats.get_stats(ts)
                         ts_stats['fchans'] = fchans
                         ts_stats['l'] = l
                         ts_stats['r'] = r
 
                     except IndexError:
-                        p.remove('bounds')
+                        tr.remove('bounds')
                         ts_stats = empty_ts_stats(fchans)
                 for key in ts_stats:
                     ts_stats_dict[f"{key}"].append(ts_stats[key])
@@ -287,7 +287,7 @@ def run_bbox_stats(turbo_dat_fns,
 
             df.to_csv(csv_fn, index=False)
         csv_list.append(csv_fn)
-    p.report()
+    tr.report()
     return csv_list
 
 
@@ -315,14 +315,14 @@ def plot_snapshot(index, df, divide_std=False):
 
     l, r, metadata = bounds.threshold_baseline_bounds(spec)
 
-    n_frame = frame_processing.t_norm_frame(dd_frame, divide_std=divide_std)
+    n_frame = frame_processing.tnorm(dd_frame, divide_std=divide_std)
     tr_frame = n_frame.get_slice(l, r)
 
     # Get time series and normalize
     ts = tr_frame.integrate('f')
     ts = ts / np.mean(ts)
 
-    ts_stats = ts_statistics.get_stats(ts)
+    ts_stats = diag_stats.get_stats(ts)
     
     print(f"SNR : {row['SNR']:.3}")
     for stat in ts_stats:
@@ -347,7 +347,7 @@ def plot_snapshot(index, df, divide_std=False):
     plt.title('Time series')
     
     plt.subplot(1, 4, 4)
-    acf = ts_statistics.autocorr(ts)
+    acf = diag_stats.autocorr(ts)
     plt.plot(acf, c='k')
     plt.axhline(0, ls='--')
     plt.xlabel('Lag')
@@ -468,7 +468,7 @@ def plot_bbox_stats(csv_fns,
     data_df = get_bbox_df(csv_fns)
     
     # Simulate signals
-    p = jort.Profiler(logname='synthetic_scintillations.log')
+    tr = jort.Tracker()
     n_samples = 1000
 
     synth_stats_dicts = {}
@@ -482,7 +482,7 @@ def plot_bbox_stats(csv_fns,
                                 fch1=8*u.GHz,
                                 ascending=False)
     for t_d in [10, 30, 100]:
-        p.start('synthesize_bbox')
+        tr.start('synthesize_bbox')
         ts_stats_dict = collections.defaultdict(list)
 
         for _ in range(n_samples):
@@ -500,19 +500,19 @@ def plot_bbox_stats(csv_fns,
             else:
                 l, r, _ = bounds.threshold_baseline_bounds(frame.integrate())
 
-            n_frame = frame_processing.t_norm_frame(frame, divide_std=divide_std)
+            n_frame = frame_processing.tnorm(frame, divide_std=divide_std)
             tr_frame = n_frame.get_slice(l, r)
             tr_ts = tr_frame.integrate('f')
             tr_ts /= tr_ts.mean()
 
             # Just get the stats for the detected signal
-            ts_stats = ts_statistics.get_stats(tr_ts)
+            ts_stats = diag_stats.get_stats(tr_ts)
 
             for key in ts_stats:
                 ts_stats_dict[f"{key}"].append(ts_stats[key])
 
         synth_stats_dicts[t_d] = ts_stats_dict
-        p.stop('synthesize_bbox')
+        tr.stop('synthesize_bbox')
     
     
     

@@ -10,10 +10,6 @@ import setigen as stg
 from setigen.funcs import func_utils
 from . import factors
 
-# def autocorr(x, length=20):
-#     # Returns up to length index shifts for autocorrelations
-#     return np.array([1]+[np.corrcoef(x[:-i], x[i:])[0, 1]
-#                          for i in range(1, length)])
 
 def autocorr(ts, remove_spike=False):
     """
@@ -31,36 +27,79 @@ def acf(ts, remove_spike=False):
     return autocorr(ts, remove_spike=remove_spike)
     
 
-def get_stats(ts, pow=5/3, use_triangle=True):
+def get_diag_stats(ts, dt=None, pow=5/3, use_triangle=True):
     """
     Calculate statistics based on normalized time series (to mean 1).
+
+    If the time resolution dt is given, then scale ACF-fit pixel parameters to 
+    the time resolution.
     """
-    stats = {}
+    diag_stats = {}
     
-    # stats['fchans'] = len(ts)
-    stats['std'] = np.std(ts)
-    stats['min'] = np.min(ts)
+    # diag_stats['fchans'] = len(ts)
+    diag_stats['std'] = np.std(ts)
+    diag_stats['min'] = np.min(ts)
     
     # relu_ts = np.where(ts >= 0, ts, 1e-3)
     relu_ts = ts
-    stats['ks'] = scipy.stats.kstest(relu_ts, 
-                                     'expon').statistic
-    stats['anderson'] = scipy.stats.anderson(relu_ts,
-                                             'expon').statistic
+    diag_stats['ks'] = scipy.stats.kstest(relu_ts, 
+                                          'expon').statistic
+    diag_stats['anderson'] = scipy.stats.anderson(relu_ts,
+                                                  'expon').statistic
 
     ac = autocorr(ts)
-    stats['lag1'] = ac[1]
-    stats['lag2'] = ac[2]
+    diag_stats['lag1'] = ac[1]
+    diag_stats['lag2'] = ac[2]
     
     try:
         popt = fit_acf(ac, pow=pow, use_triangle=use_triangle)
     except RuntimeError:
         popt = [np.nan, np.nan, np.nan]
-    stats['acf_t_d'] = popt[0]
-    stats['acf_A'] = popt[1]
-    stats['acf_W'] = popt[2]
+    diag_stats['fit_t_d'] = popt[0]
+    diag_stats['fit_A'] = popt[1]
+    diag_stats['fit_W'] = popt[2]
+
+    if dt is not None:
+        diag_stats['fit_t_d'] = diag_stats['fit_t_d'] * dt
     
-    return stats
+    return diag_stats
+
+
+def empty_diag_stats(fchans):
+    """
+    Produce dictionary with empty values for all time series diagnostic 
+    statistics.
+
+    Parameters
+    ----------
+    fchans : int
+        Number of frequency channels 
+
+    Returns
+    -------
+    stats : dict
+        Dictionary of statistics
+    """
+    diag_stats = {
+        'std': None,
+        'min': None,
+        'ks': None,
+        'anderson': None,
+        'lag1': None,
+        'lag2': None,
+        'fchans': fchans,
+        'l': None,
+        'r': None,
+        'fit_t_d': None,
+        'fit_A': None,
+        'fit_W': None,
+    }
+    # for label, pow in [('sq', 2), ('k', 5/3)]:
+    #     for use_triangle in [True, False]:
+    #         diag_stats[f'acf_t_d.{label}.{use_triangle}'] = None
+    #         diag_stats[f'acf_A.{label}.{use_triangle}'] = None
+    #         diag_stats[f'acf_W.{label}.{use_triangle}'] = None
+    return diag_stats
 
 
 def triangle(x, L):
@@ -68,13 +107,13 @@ def triangle(x, L):
     return np.where(np.abs(x) <= L, y, 0)
 
 
-def scint_acf(x, t_d, pow=2):
+def scint_acf(x, t_d, pow=5/3):
     """
     pow is 2 for square-law; 5/3 for Kolmogorov.
     """
     return np.exp(-(np.abs(x / t_d))**pow)
 
-def noisy_scint_acf(x, t_d, A, W, pow=2, use_triangle=True):
+def noisy_scint_acf(x, t_d, A, W, pow=5/3, use_triangle=True):
     """
     pow is 2 for square-law; 5/3 for Kolmogorov.
     use_triangle weights the acf model by the triangular function for the acf calculation.
@@ -85,7 +124,7 @@ def noisy_scint_acf(x, t_d, A, W, pow=2, use_triangle=True):
         factor = 1
     return A * scint_acf(x, t_d, pow=pow) * factor + W * scipy.signal.unit_impulse(len(x))
 
-def noisy_scint_acf_gen(pow=2, use_triangle=True):
+def noisy_scint_acf_gen(pow=5/3, use_triangle=True):
     """
     pow is 2 for square-law; 5/3 for Kolmogorov.
     """
@@ -95,7 +134,7 @@ def noisy_scint_acf_gen(pow=2, use_triangle=True):
 #     return A * stg.func_utils.gaussian(x, 0, sigma) + Y * scipy.signal.unit_impulse(len(x))
     
     
-def fit_acf(acf, pow=2, use_triangle=True, remove_spike=False):
+def fit_acf(acf, pow=5/3, use_triangle=True, remove_spike=False):
     """
     Routine to fit ideal ACF shapes to empirical autocorrelations. 
     pow is 2 for square-law; 5/3 for Kolmogorov.
@@ -109,15 +148,14 @@ def fit_acf(acf, pow=2, use_triangle=True, remove_spike=False):
                                  acf[1:],
                                  bounds=([0], [len(acf)]))
         return [popt[0], 1, 0]
-        return [popt[0] + 1, 1, 0]
+        # return [popt[0] + 1, 1, 0]
     else:
-        # t_acf_func = acf_func
         t_acf_func = noisy_scint_acf_gen(pow=pow, 
                                          use_triangle=use_triangle)
         popt, a = optimize.curve_fit(t_acf_func, 
-                                 np.arange(len(acf)),
-                                 acf,
-                                 bounds=([0, 0, 0], [len(acf), 1, 1]))
+                                     np.arange(len(acf)),
+                                     acf,
+                                     bounds=([0, 0, 0], [len(acf), 1, 1]))
         return popt
     
     
@@ -149,7 +187,7 @@ def ts_plots(ts, xlim=None, bins=None):
     plt.ylabel('Counts')
     plt.show()
     
-    print(get_stats(ts))
+    print(get_diag_stats(ts))
     
     
 def ts_stat_plots(ts_arr, t_d=None, dt=None):
@@ -166,7 +204,7 @@ def ts_stat_plots(ts_arr, t_d=None, dt=None):
     
     ts_stats_dict = collections.defaultdict(list)
     for ts in ts_arr:
-        ts_stats = get_stats(ts)
+        ts_stats = get_diag_stats(ts)
 
         for key in ts_stats:
             ts_stats_dict[key].append(ts_stats[key])

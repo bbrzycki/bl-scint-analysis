@@ -7,10 +7,8 @@ from astropy.stats import sigma_clip
 
 import setigen as stg
 
-from . import frame_processing
 
-
-def plot_bounds(frame, l, r, use_db=False, cb=True, lw=2):
+def plot_bounds(frame, l, r, db=False, colorbar=True, lw=2):
     """
     Plot frame data with overlaid bounding boxes.
     
@@ -22,14 +20,14 @@ def plot_bounds(frame, l, r, use_db=False, cb=True, lw=2):
         Left bound
     r : int
         Right bound
-    use_db : bool, optional
+    db : bool, optional
         Option to convert intensities to dB
-    cb : bool, optional
+    colorbar : bool, optional
         Option to display colorbar
     lw : int, optional
         Line width in matplotlib
     """
-    frame.plot(use_db=use_db, cb=cb)
+    frame.plot(ftype='px', db=db, colorbar=colorbar)
     plt.axvline(l, ls='--', c='w', lw=lw)
     plt.axvline(r, ls='--', c='w', lw=lw)
 
@@ -363,7 +361,7 @@ def clipped_2D_bounds(frame, min_empty_bins=2, min_clipped=1, peak_prominence=4)
         Dictionary with metadata related to peak-finding. Contains detected
         peak information.
     """
-    n_frame = frame_proc.t_norm_frame(frame)
+    n_frame = frame_proc.normalize_frame(frame)
     clipped_data = sigma_clip(n_frame.data)
     mask_spec = np.sum(clipped_data.mask, axis=0)
     

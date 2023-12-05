@@ -20,8 +20,8 @@ import scipy.linalg
 
 import setigen as stg
 from setigen.funcs import func_utils
-from . import factors
-from . import ts_statistics
+from blscint import factors
+from blscint import diag_stats
 
 
 def get_rho(t_d, dt, p, pow=5/3):
@@ -50,7 +50,7 @@ def get_rho(t_d, dt, p, pow=5/3):
     # r = stg.func_utils.gaussian(np.arange(1, p + 1),
     #                             0, 
     #                             t_d / dt / factors.hwem_m)
-    r = ts_statistics.scint_acf(np.arange(1, p + 1), t_d / dt, pow=pow)
+    r = diag_stats.scint_acf(np.arange(1, p + 1), t_d / dt, pow=pow)
     return r
 
 
@@ -84,7 +84,7 @@ def psi(r):
     return scipy.linalg.toeplitz(np.concatenate([[1.], r[:-1]]))
 
 
-def build_Z(r, T):
+def build_Z(r, T, seed=None):
     """
     Build full baseline Z array.
 
@@ -94,12 +94,16 @@ def build_Z(r, T):
         Array of autocorrelation guesses, starting with lag 1
     T : int
         Final length of array Z, should be greater than p
+    seed : None, int, Generator, optional
+        Random seed or seed generator
 
     Returns
     -------
     Z : np.ndarray
         Array of Z values, as in ARTA
     """
+    rng = np.random.default_rng(seed)
+
     # T is final length of array Z, should be greater than p
     # r is the array of guesses to get close to desired autocorrelations
     # Returns full Z array
@@ -118,7 +122,7 @@ def build_Z(r, T):
 #     print(np.linalg.eigvalsh(covariance))
     _ = np.linalg.cholesky(covariance)
 
-    Z[:p] = np.random.multivariate_normal(np.zeros(p), covariance)
+    Z[:p] = rng.multivariate_normal(np.zeros(p), covariance)
     alpha = np.dot(r, np.linalg.inv(covariance))
 #     print(np.abs(np.roots([1.]+list(-alpha))))
     try:
@@ -133,7 +137,7 @@ def build_Z(r, T):
         raise RuntimeError('Variance of epsilon is negative!')
 
     for i in range(p, T):
-        epsilon = np.random.normal(0, np.sqrt(variance))
+        epsilon = rng.normal(0, np.sqrt(variance))
         Z[i] = np.dot(alpha, Z[i-p:i][::-1]) + epsilon
     return Z
 
@@ -183,7 +187,7 @@ def get_Y(Z, dist='exp'):
     return Y / np.mean(Y)
 
 
-def get_ts_arta(t_d, dt, num_samples, p=2, pow=5/3, dist='exp'):
+def get_ts_arta(t_d, dt, num_samples, p=2, pow=5/3, dist='exp', seed=None):
     """
     Produce time series data via an ARTA process. 
 
@@ -199,14 +203,17 @@ def get_ts_arta(t_d, dt, num_samples, p=2, pow=5/3, dist='exp'):
         Number of lags to calculate
     pow : float, optional
         Exponent for ACF fit, either 5/3 or 2 (arising from phase structure function) 
+    seed : None, int, Generator, optional
+        Random seed or seed generator
 
     Returns
     -------
     Y : np.ndarray
         Final synthetic scintillated time series (Y values)
     """
+    rng = np.random.default_rng(seed)
     rho = get_rho(t_d, dt, p, pow)
-    Z = build_Z(rho, num_samples)
+    Z = build_Z(rho, num_samples, seed=rng)
     Y = get_Y(Z, dist)
     return Y
 

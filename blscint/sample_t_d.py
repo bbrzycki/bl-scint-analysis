@@ -9,12 +9,11 @@ try:
     import cPickle as pickle
 except:
     import pickle
-    
+
 import scipy.stats
 
 from astropy.stats import sigma_clip
-from scipy.stats import median_absolute_deviation
-from galpy.potential.mwpotentials import McMillan17
+from scipy.stats import median_abs_deviation
 
 from . import ne2001
 
@@ -75,14 +74,14 @@ def central(t_ds, p):
 
 
 def visualize_mc(t_ds):
-    print(f'without sigmaclip: Med,std,mad: {np.median(t_ds):.1f}+-{np.std(t_ds):.1f}: {median_absolute_deviation(t_ds):.1f}')
-    print(f'coverage: {coverage(t_ds, start=np.median(t_ds)-median_absolute_deviation(t_ds), stop=np.median(t_ds)+median_absolute_deviation(t_ds))}')
+    print(f'without sigmaclip: Med,std,mad: {np.median(t_ds):.1f}+-{np.std(t_ds):.1f}: {median_abs_deviation(t_ds):.1f}')
+    print(f'coverage: {coverage(t_ds, start=np.median(t_ds)-median_abs_deviation(t_ds), stop=np.median(t_ds)+median_abs_deviation(t_ds))}')
     t_ds = sigma_clip(t_ds, masked=False)
     
     plt.hist(t_ds, bins=25)
     plt.xlabel('Scintillation timescale (s)')
     plt.ylabel('Counts')
-    plt.title(f'Med,std,mad: {np.median(t_ds):.1f}+-{np.std(t_ds):.1f}: {median_absolute_deviation(t_ds):.1f}')
+    plt.title(f'Med,std,mad: {np.median(t_ds):.1f}+-{np.std(t_ds):.1f}: {median_abs_deviation(t_ds):.1f}')
 #     plt.legend()
     
     plt.tight_layout()
@@ -118,7 +117,9 @@ class NESampler(object):
     """
     def __init__(self, l, b, 
                  d=(0.01, 20),
-                 delta_d=0.01):
+                 delta_d=0.01,
+                 seed=None):
+        self.rng = np.random.default_rng(seed)
         self.l, self.b = l, b
         self.delta_d = delta_d
         
@@ -140,7 +141,7 @@ class NESampler(object):
 
         self.raw_data = NEData(t_d=raw_t_ds, nu_d=raw_nu_ds)
             
-    def save_pickle(self, filename):
+    def save(self, filename):
         """
         Save entire sampler (including NE2001 calculations) as a pickled file (.pickle).
         """
@@ -148,10 +149,10 @@ class NESampler(object):
             pickle.dump(self, f)
 
     @classmethod
-    def load_pickle(cls, filename):
+    def load(cls, filename):
         """
         Load sampler object from a pickled file (.pickle), 
-        created with NESampler.save_pickle.
+        created with NESampler.save.
         """
         with open(filename, 'rb') as f:
             sampler = pickle.load(f)
@@ -222,19 +223,19 @@ class NESampler(object):
             if weight_by_flux:
                 d_rel_prob = d_rel_prob / self.d[d_idx]**2
             d_prob = d_rel_prob / np.sum(d_rel_prob)
-            sampled_idx = np.random.choice(d_idx, size=n, p=d_prob)
+            sampled_idx = self.rng.choice(d_idx, size=n, p=d_prob)
                  
             sampled_t_ds = self.raw_data.t_d[sampled_idx]
             sampled_nu_ds = self.raw_data.nu_d[sampled_idx]
             sampled_ds = self.d[sampled_idx]
         
         try:
-            f = np.random.uniform(f[0], f[1], n)
+            f = self.rng.uniform(f[0], f[1], n)
         except (TypeError, IndexError):
             f = np.repeat(f, n)
 
         try:
-            v = np.random.uniform(v[0], v[1], n)
+            v = self.rng.uniform(v[0], v[1], n)
         except (TypeError, IndexError):
             v = np.repeat(v, n)
             
@@ -321,8 +322,8 @@ class NEData(object):
             mode = (bins[mode_idx] + bins[mode_idx + 1]) / 2
             
             print(f"Median: {np.median(data):.3} {self.units[quantity]}")
-            print(f"MAD: {median_absolute_deviation(data):.3} {self.units[quantity]}")
-            print(f'Coverage: {coverage(data, start=np.median(data)-median_absolute_deviation(data), stop=np.median(data)+median_absolute_deviation(data)):.3}')
+            print(f"MAD: {median_abs_deviation(data):.3} {self.units[quantity]}")
+            print(f'Coverage: {coverage(data, start=np.median(data)-median_abs_deviation(data), stop=np.median(data)+median_abs_deviation(data)):.3}')
             print(f"Std: {np.std(data):.3} {self.units[quantity]}")
             print(f"Mode: {mode:.3} {self.units[quantity]}")
             
@@ -352,8 +353,8 @@ class NEData(object):
             plt.axvline(np.median(data), ls='-', c='k')
             plt.axvline(np.quantile(data, 0.25), ls='--', c='k')
             plt.axvline(np.quantile(data, 0.75), ls='--', c='k')
-            plt.axvline(np.median(data)-median_absolute_deviation(data), ls=':', c='b')
-            plt.axvline(np.median(data)+median_absolute_deviation(data), ls=':', c='b')
+            plt.axvline(np.median(data)-median_abs_deviation(data), ls=':', c='b')
+            plt.axvline(np.median(data)+median_abs_deviation(data), ls=':', c='b')
             plt.axvline(mode, ls='-', c='g')
             plt.title(f'{np.median(data):.3}({np.quantile(data, 0.25):.3}, {np.quantile(data, 0.75):.3}) {self.units[quantity]} (mode: {mode:.3} {self.units[quantity]})')
         plt.tight_layout()
