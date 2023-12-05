@@ -48,7 +48,7 @@ def extract_ts(frame, bound='threshold', divide_std=True, as_data=None):
     Extract normalized time series from dedrifted frame with centered signal, 
     as well as frequency bounds as a tuple.
     """
-    spec = frame.integrate()
+    spec = stg.integrate(frame)
 
     if bound == 'threshold':
         l, r, _ = bounds.threshold_baseline_bounds(spec)
@@ -59,8 +59,11 @@ def extract_ts(frame, bound='threshold', divide_std=True, as_data=None):
     
     n_frame = tnorm(frame, divide_std=divide_std, as_data=as_data)
     tr_frame = n_frame.get_slice(l, r)
-    ts = tr_frame.integrate('f')
-    ts = ts / np.mean(ts)
+    # ts = tr_frame.integrate('f')
+    # ts = ts / np.mean(ts)
+    ts = stg.integrate(tr_frame, axis='f', as_frame=True)
+    ts.normalize()
+    ts.add_metadata({"l": l, "r": r})
     return ts, (l, r)
 
 
