@@ -3,9 +3,9 @@ import os
 import click
 
 from ._version import __version__
-from . import _analyze_obs
 from . import analysis
-from . import synthesize
+from . import simulations
+from . import bl_obs
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -101,7 +101,8 @@ def montecarlo(filename, sample_number, pointing, distance, frequency, velocity,
 cli.add_command(analysis.dedoppler)
 cli.add_command(analysis.diagstat)
 cli.add_command(montecarlo)
-cli.add_command(synthesize.synthesize_dataset)
+cli.add_command(simulations.synthesize_dataset)
+# cli.add_command(bl_obs.observability)
 
 if __name__ == '__main__':
     cli()

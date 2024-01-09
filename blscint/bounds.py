@@ -8,7 +8,7 @@ from astropy.stats import sigma_clip
 import setigen as stg
 
 
-def plot_bounds(frame, l, r, use_db=False, cb=True, lw=2):
+def plot_bounds(frame, l, r, db=False, colorbar=True, lw=2):
     """
     Plot frame data with overlaid bounding boxes.
     
@@ -20,14 +20,14 @@ def plot_bounds(frame, l, r, use_db=False, cb=True, lw=2):
         Left bound
     r : int
         Right bound
-    use_db : bool, optional
+    db : bool, optional
         Option to convert intensities to dB
-    cb : bool, optional
+    colorbar : bool, optional
         Option to display colorbar
     lw : int, optional
         Line width in matplotlib
     """
-    frame.plot(use_db=use_db, cb=cb)
+    frame.plot(ftype='px', db=db, colorbar=colorbar)
     plt.axvline(l, ls='--', c='w', lw=lw)
     plt.axvline(r, ls='--', c='w', lw=lw)
 

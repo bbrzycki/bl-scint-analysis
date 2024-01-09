@@ -9,7 +9,7 @@ from . import factors
 from . import bounds
 
 
-def tnorm(frame, as_data=None, divide_std=False):
+def tnorm(frame, divide_std=False, as_data=None):
     """
     Normalize frame by subtracting out noise background, along time axis.
     Additional option to divide out by the standard deviation of each 
@@ -19,11 +19,11 @@ def tnorm(frame, as_data=None, divide_std=False):
     ----------
     frame : stg.Frame
         Raw spectrogram frame
+    divide_std : bool, optional
+        Normalize each spectrum by dividing by its standard deviation 
     as_data : stg.Frame, optional
         Use alternate frame to compute noise stats. If desired, use a more
         isolated region of time-frequency space for cleaner computation.
-    divide_std : bool, optional
-        Normalize each spectrum by dividing by its standard deviation 
 
     Returns
     -------
@@ -43,12 +43,12 @@ def tnorm(frame, as_data=None, divide_std=False):
     return n_frame
 
 
-def extract_ts(frame, bound='threshold', divide_std=True):
+def extract_ts(frame, bound='threshold', divide_std=True, as_data=None):
     """
     Extract normalized time series from dedrifted frame with centered signal, 
     as well as frequency bounds as a tuple.
     """
-    spec = frame.integrate()
+    spec = stg.integrate(frame)
 
     if bound == 'threshold':
         l, r, _ = bounds.threshold_baseline_bounds(spec)
@@ -57,10 +57,14 @@ def extract_ts(frame, bound='threshold', divide_std=True):
     else:
         raise ValueError("Bound should be either 'threshold' or 'snr'")
     
-    n_frame = tnorm(frame, divide_std=divide_std)
-    tr_frame = n_frame.get_slice(l, r)
-    ts = tr_frame.integrate('f')
-    ts = ts / np.mean(ts)
+    n_frame = tnorm(frame, divide_std=divide_std, as_data=as_data)
+    # tr_frame = n_frame.get_slice(l, r)
+    tr_frame = stg.get_slice(n_frame, l, r)
+    # ts = tr_frame.integrate('f')
+    # ts = ts / np.mean(ts)
+    ts = stg.integrate(tr_frame, axis='f', as_frame=True)
+    ts.normalize()
+    ts.add_metadata({"l": l, "r": r})
     return ts, (l, r)
 
 
