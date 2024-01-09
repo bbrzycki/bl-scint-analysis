@@ -81,7 +81,9 @@ class SignalGenerator(object):
                 signal = frame.add_signal(stg.constant_path(f_start=frame.get_frequency(128), 
                                                             drift_rate=0),
                                         ts * frame.get_intensity(snr=snr),
-                                        stg.sinc2_f_profile(width=2 * frame.df),
+                                        stg.sinc2_f_profile(width=2*frame.df, 
+                                                            width_mode="crossing",
+                                                            trunc=False),
                                         stg.constant_bp_profile(level=1))
 
                 ts, (l, r) = frame_processing.extract_ts(frame,
