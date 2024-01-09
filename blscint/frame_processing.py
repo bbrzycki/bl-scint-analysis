@@ -58,7 +58,8 @@ def extract_ts(frame, bound='threshold', divide_std=True, as_data=None):
         raise ValueError("Bound should be either 'threshold' or 'snr'")
     
     n_frame = tnorm(frame, divide_std=divide_std, as_data=as_data)
-    tr_frame = n_frame.get_slice(l, r)
+    # tr_frame = n_frame.get_slice(l, r)
+    tr_frame = stg.get_slice(n_frame, l, r)
     # ts = tr_frame.integrate('f')
     # ts = ts / np.mean(ts)
     ts = stg.integrate(tr_frame, axis='f', as_frame=True)

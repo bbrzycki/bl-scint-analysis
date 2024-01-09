@@ -102,7 +102,7 @@ cli.add_command(analysis.dedoppler)
 cli.add_command(analysis.diagstat)
 cli.add_command(montecarlo)
 cli.add_command(simulations.synthesize_dataset)
-cli.add_command(bl_obs.observability)
+# cli.add_command(bl_obs.observability)
 
 if __name__ == '__main__':
     cli()
