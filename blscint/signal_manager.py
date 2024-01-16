@@ -23,7 +23,10 @@ class SignalManager(object):
 
         # Exclude DC bin (value depends on rawspec fftlength)
         # print('Before DC bins (may be excluded by TurboSETI):', data_df.shape)
-        real_df = real_df[real_df['ChanIndx'] != 524288]
+        try:
+            real_df = real_df[real_df['ChanIndx'] != 524288]
+        except KeyError:
+            real_df = real_df[real_df['Index'] != 524288]
         # print('After removing:', data_df.shape)
         
         # # Exclude first compute node

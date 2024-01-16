@@ -201,7 +201,7 @@ def diagstat(filename,
                                                   data_fn=data_path)
                         # Dedrift using hit metadata
                         frame = stg.dedrift(frame) 
-                        spec = frame.integrate()
+                        spec = stg.integrate(frame)
                         l, r, _ = bounds.polyfit_bounds(spec, 
                                                         deg=1, 
                                                         snr_threshold=10)
@@ -222,6 +222,8 @@ def diagstat(filename,
                         ts, (l, r) = frame_processing.extract_ts(frame,
                                                                  bound=bound,
                                                                  divide_std=divide_std)
+                            
+                        ts = ts.array()
                         if save_ts:
                             tsdump[idx, :] = ts
 
