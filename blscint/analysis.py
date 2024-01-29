@@ -223,11 +223,10 @@ def diagstat(filename,
                                                                  bound=bound,
                                                                  divide_std=divide_std)
                             
-                        ts = ts.array()
                         if save_ts:
-                            tsdump[idx, :] = ts
+                            tsdump[idx, :] = ts.array()
 
-                        ts_stats = diag_stats.get_diag_stats(ts, dt=frame.dt)
+                        ts_stats = diag_stats.get_diag_stats(ts)
                         ts_stats.update({
                             'fchans': fchans,
                             'l': l,

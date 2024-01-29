@@ -15,6 +15,8 @@ def autocorr(ts, remove_spike=False):
     """
     Calculate full autocorrelation, normalizing time series to zero mean and unit variance.
     """
+    if isinstance(ts, stg.TimeSeries):
+        ts = ts.array()
     ts = (ts - np.mean(ts)) #/ np.std(ts)
     acf = np.correlate(ts, ts, 'full')[-len(ts):]
     if remove_spike:
@@ -34,6 +36,10 @@ def get_diag_stats(ts, dt=None, pow=5/3, use_triangle=True):
     If the time resolution dt is given, then scale ACF-fit pixel parameters to 
     the time resolution.
     """
+    if isinstance(ts, stg.TimeSeries):
+        dt = ts.dt 
+        ts = ts.array()
+
     diag_stats = {}
     
     # diag_stats['fchans'] = len(ts)

@@ -98,12 +98,11 @@ class SignalGenerator(object):
                     ts = None 
             
                 if save_ts and ts is not None:
-                    tsdump[idx, :] = ts
+                    tsdump[idx, :] = ts.array()
                 fchans = frame.fchans
                 
             if ts is not None:
-                ts_stats = diag_stats.get_diag_stats(ts, 
-                                                    dt=self.frame_metadata['dt'])
+                ts_stats = diag_stats.get_diag_stats(ts)
                 ts_stats.update({
                     'fchans': fchans,
                     't_d': t_d,

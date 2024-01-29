@@ -33,12 +33,17 @@ class SignalManager(object):
         # data_df = data_df[data_df['fn'].apply(lambda x: x.split('/')[-1][3:5] != '00')]
         
         # Remove non-fit signals (which are replaced with NaN)
-        real_df = real_df[real_df['ks'].notna()]
+        try:
+            real_df = real_df[real_df['ks'].notna()]
+        except KeyError:
+            # No rows 
+            pass
 
-        if self.df is None:
-            self.df = real_df
-        else:
-            self.df = pd.concat([self.df, real_df], ignore_index=True)
+        if real_df.size != 0:
+            if self.df is None:
+                self.df = real_df
+            else:
+                self.df = pd.concat([self.df, real_df], ignore_index=True)
 
     def add_synthetic(self, csv_file, label=None):
         synth_df = pd.read_csv(csv_file)
@@ -59,18 +64,21 @@ class SignalManager(object):
                                 'Scintillation Timescale Fit (s)'],
                         statistic_bounds=None,
                         # legend_loc=[1, 2, 1, 1],
+                        cols=4,
                         **kwargs):
         """
         Plot histograms of signal statistics.
         """
-        fig, axs = plt.subplots(1, 
-                                len(statistics), 
-                                figsize=(5 * len(statistics), 4), 
+        rows = int(np.ceil(len(statistics) / cols))
+        fig, axs = plt.subplots(rows, 
+                                cols, 
+                                figsize=(5 * cols, 4 * rows), 
                                 sharey='col')
 
         for j, stat in enumerate(statistics):
+            ax = axs.flatten()[j]
             if j == 0:
-                axs[j].set_ylabel('Counts')
+                ax.set_ylabel('Counts')
             
             all_vals = np.hstack([filter['df'][stat] for filter in filters if stat in filter['df']])
             all_vals = all_vals[~np.isnan(all_vals)]
@@ -79,29 +87,37 @@ class SignalManager(object):
                 if statistic_bounds[j] is not None:
                     all_vals = all_vals[(all_vals > statistic_bounds[j][0])
                                         & (all_vals < statistic_bounds[j][1])]
-                    # axs[j].set_xlim(statistic_bounds[j])
 
             bins=np.histogram(all_vals, bins=kwargs.get('bins', 40))[1]
 
             for i, filter in enumerate(filters):
                 try:
-                    axs[j].hist(filter['df'][stat], 
-                                bins=bins, 
-                                histtype='step', 
-                                label=filter['label'],
-                                color=filter.get('color'),
-                                linewidth=filter.get('linewidth'),
-                                linestyle=filter.get('linestyle'))
+                    ax.hist(filter['df'][stat], 
+                            bins=bins, 
+                            histtype='step', 
+                            label=filter['label'],
+                            color=filter.get('color'),
+                            linewidth=filter.get('linewidth'),
+                            linestyle=filter.get('linestyle'),
+                            # facecolor=filter.get('color'),
+                            fill=filter.get('fill'),
+                            alpha=filter.get('alpha'))
                 except ValueError:
                     pass
                 
-            axs[j].xaxis.set_tick_params(labelbottom=True)
-            axs[j].set_xlabel(titles[j])
+            ax.xaxis.set_tick_params(labelbottom=True)
+            ax.set_xlabel(titles[j])
             
             if 'legend_loc' in kwargs:
-                axs[j].legend(loc=kwargs['legend_loc'][j])
+                ax.legend(loc=kwargs['legend_loc'][j])
             else:
-                axs[j].legend()
+                ax.legend()
+        
+        for j in range(len(statistics), rows * cols):
+            ax = axs.flatten()[j]
+            ax.set_axis_off()
+    
+        return fig, axs
 
     def plot_diagstat_histograms(self, t_ds=[], rfi_labels=[], data_labels=[], **kwargs):
         """
@@ -135,7 +151,7 @@ class SignalManager(object):
                 'linewidth': 2
             })
 
-        self.plot_histograms(filters=filters, **kwargs)
+        return self.plot_histograms(filters=filters, **kwargs)
     
     def centered_frame(self, idx, fchans=None, frame_metadata=None):
         """
@@ -148,30 +164,13 @@ class SignalManager(object):
         data_fn = signal_info["data_fn"]
         if fchans is None:
             fchans = signal_info["fchans"]
-        if frame_metadata is None:
-            # Make the assumption that all file metadata is consistent
-            frame_metadata = frame_processing.get_metadata(data_fn)
 
-        tchans = frame_metadata["tchans"]
-        df = frame_metadata["df"]
-        dt = frame_metadata["dt"]
-
-        adj_center_freq = center_freq + drift_rate / 1e6 * tchans / 2
-        max_offset = int(abs(drift_rate) * tchans * dt / df)
-        if drift_rate >= 0:
-            adj_fchans = [0, max_offset]
-        else:
-            adj_fchans = [max_offset, 0]
-        
-        f_start = adj_center_freq - (fchans / 2 + adj_fchans[0]) * df / 1e6
-        f_stop = adj_center_freq + (fchans / 2 + adj_fchans[1]) * df / 1e6
-        frame = stg.Frame(data_fn, f_start=f_start, f_stop=f_stop)
-            
-        frame.add_metadata({
-            'drift_rate': drift_rate,
-            'center_freq': center_freq,
-            'idx': idx,
-        })
+        frame = frame_processing.centered_frame(data_fn,
+                                                center_freq,
+                                                drift_rate,
+                                                fchans,
+                                                frame_metadata=frame_metadata)
+        frame.add_metadata(dict(idx=idx))
         return frame
 
     def estimate_thresholds(self, *args, **kwargs):
@@ -182,7 +181,7 @@ class SignalManager(object):
 
     def save(self, filename):
         """
-        Save DataSynthesizer as a pickled file (.pickle).
+        Save SignalManager as a pickled file (.pickle).
         """
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
@@ -190,7 +189,7 @@ class SignalManager(object):
     @classmethod
     def load(cls, filename):
         """
-        Load DataSynthesizer from a pickled file (.pickle).
+        Load SignalManager from a pickled file (.pickle).
         """
         with open(filename, 'rb') as f:
             frame = pickle.load(f)

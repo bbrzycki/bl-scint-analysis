@@ -91,6 +91,36 @@ def get_metadata(fn):
     }
 
 
+def centered_frame(data_fn, center_freq, drift_rate, fchans, frame_metadata=None):
+    """
+    center_freq is in MHz.
+    """
+    if frame_metadata is None:
+        frame_metadata = get_metadata(data_fn)
+
+    tchans = frame_metadata["tchans"]
+    df = frame_metadata["df"]
+    dt = frame_metadata["dt"]
+
+    adj_center_freq = center_freq + drift_rate / 1e6 * tchans / 2
+    max_offset = int(abs(drift_rate) * tchans * dt / df)
+    if drift_rate >= 0:
+        adj_fchans = [0, max_offset]
+    else:
+        adj_fchans = [max_offset, 0]
+    
+    f_start = adj_center_freq - (fchans / 2 + adj_fchans[0]) * df / 1e6
+    f_stop = adj_center_freq + (fchans / 2 + adj_fchans[1]) * df / 1e6
+    frame = stg.Frame(data_fn, f_start=f_start, f_stop=f_stop)
+        
+    frame.add_metadata({
+        'drift_rate': drift_rate,
+        'center_freq': center_freq,
+    })
+    return frame
+
+
+
 def _dedrift_frame(frame, drift_rate=None):
     if drift_rate is None:
         if "drift_rate" in frame.metadata:
