@@ -18,7 +18,7 @@ from . import bounds
 from . import hit_parser
 
 
-def as_file_list(fns, node_excludes=[], str_excludes=[]):
+def as_file_list(fns, excluded_nodes=[], excluded_strs=[]):
     """
     Expand files, using glob pattern matching, into a full list.
     In addition, user can specify strings to exclude in any filenames.
@@ -27,10 +27,10 @@ def as_file_list(fns, node_excludes=[], str_excludes=[]):
     ----------
     fns : list
         List of files or patterns, as strings or pathlib.Paths
-    node_excludes : list, optional
+    excluded_nodes : list, optional
         List which nodes should be excluded from analysis, particularly
         for overlapped spectrum
-    str_excludes : list, optional
+    excluded_strs : list, optional
         List of strings that shouldn't appear in filenames
         
     Returns
@@ -49,10 +49,10 @@ def as_file_list(fns, node_excludes=[], str_excludes=[]):
             paths.extend(Path().glob(str(pattern)))
     
     paths.sort()
-    for exclude_str in node_excludes:
+    for exclude_str in excluded_nodes:
         exclude_str = f"{int(exclude_str):02d}"
         paths = [fn for fn in paths if f"blc{exclude_str}" not in fn.name]
-    for exclude_str in str_excludes:
+    for exclude_str in excluded_strs:
         paths = [fn for fn in paths if exclude_str not in fn.name]
     return paths
 
