@@ -91,17 +91,85 @@ def get_metadata(fn):
     }
 
 
-def centered_frame(data_fn, center_freq, drift_rate, fchans, frame_metadata=None):
-    """
-    center_freq is in MHz.
-    """
-    if frame_metadata is None:
-        frame_metadata = get_metadata(data_fn)
+# def centered_frame(data_fn, center_freq, drift_rate, fchans, frame_metadata=None):
+#     """
+#     center_freq is in MHz.
+#     """
+#     if frame_metadata is None:
+#         frame_metadata = get_metadata(data_fn)
 
-    tchans = frame_metadata["tchans"]
-    df = frame_metadata["df"]
-    dt = frame_metadata["dt"]
+#     tchans = frame_metadata["tchans"]
+#     df = frame_metadata["df"]
+#     dt = frame_metadata["dt"]
 
+#     adj_center_freq = center_freq + drift_rate / 1e6 * tchans / 2
+#     max_offset = int(abs(drift_rate) * tchans * dt / df)
+#     if drift_rate >= 0:
+#         adj_fchans = [0, max_offset]
+#     else:
+#         adj_fchans = [max_offset, 0]
+    
+#     f_start = adj_center_freq - (fchans / 2 + adj_fchans[0]) * df / 1e6
+#     f_stop = adj_center_freq + (fchans / 2 + adj_fchans[1]) * df / 1e6
+#     frame = stg.Frame(data_fn, f_start=f_start, f_stop=f_stop)
+        
+#     frame.add_metadata({
+#         'drift_rate': drift_rate,
+#         'center_freq': center_freq,
+#     })
+#     return frame
+
+
+# def centered_frame_fbounds(data_fn, center_freq, drift_rate, fchans, frame_metadata={}):
+#     """
+#     center_freq is in MHz.
+#     """
+#     data_frame_metadata = {}
+#     if len({"tchans", "df", "dt"} & frame_metadata.keys()) < 3:
+#         data_frame_metadata = get_metadata(data_fn)
+#     tchans = frame_metadata.get("tchans", data_frame_metadata.get("tchans"))
+#     df = frame_metadata.get("df", data_frame_metadata.get("df"))
+#     dt = frame_metadata.get("dt", data_frame_metadata.get("dt"))
+
+#     adj_center_freq = center_freq + drift_rate / 1e6 * tchans / 2
+#     max_offset = int(abs(drift_rate) * tchans * dt / df)
+#     if drift_rate >= 0:
+#         adj_fchans = [0, max_offset]
+#     else:
+#         adj_fchans = [max_offset, 0]
+    
+#     f_start = adj_center_freq - (fchans / 2 + adj_fchans[0]) * df / 1e6
+#     f_stop = adj_center_freq + (fchans / 2 + adj_fchans[1]) * df / 1e6
+#     return dict(f_start=f_start, f_stop=f_stop)
+
+
+# def centered_frame(data_fn, center_freq, drift_rate, fchans, frame_metadata=None):
+#     """
+#     center_freq is in MHz.
+#     """
+#     frame = stg.Frame(data_fn, 
+#                       **centered_frame_fbounds(data_fn, center_freq, drift_rate, fchans, frame_metadata=frame_metadata))
+        
+#     frame.add_metadata({
+#         'drift_rate': drift_rate,
+#         'center_freq': center_freq,
+#     })
+#     return frame
+
+
+def centered_cadence_fbounds(data_fn, center_freq, drift_rate, fchans, frame_metadata=None):
+    data_frame_metadata = {}
+    if len({"tchans", "df", "dt"} & frame_metadata.keys()) < 3:
+        data_frame_metadata = get_metadata(data_fn)
+    tchans = frame_metadata.get("tchans", data_frame_metadata.get("tchans"))
+    df = frame_metadata.get("df", data_frame_metadata.get("df"))
+    dt = frame_metadata.get("dt", data_frame_metadata.get("dt"))
+
+
+    return dict(f_start=f_start, f_stop=f_stop)
+
+
+def _centered_frame_fbounds(center_freq, drift_rate, fchans, tchans, df, dt):
     adj_center_freq = center_freq + drift_rate / 1e6 * tchans / 2
     max_offset = int(abs(drift_rate) * tchans * dt / df)
     if drift_rate >= 0:
@@ -111,58 +179,32 @@ def centered_frame(data_fn, center_freq, drift_rate, fchans, frame_metadata=None
     
     f_start = adj_center_freq - (fchans / 2 + adj_fchans[0]) * df / 1e6
     f_stop = adj_center_freq + (fchans / 2 + adj_fchans[1]) * df / 1e6
-    frame = stg.Frame(data_fn, f_start=f_start, f_stop=f_stop)
+    return dict(f_start=f_start, f_stop=f_stop)
+
+
+def centered_frame_fbounds(data_fn, center_freq, drift_rate, fchans, frame_metadata={}):
+    """
+    center_freq is in MHz.
+    """
+    data_frame_metadata = {}
+    if len({"tchans", "df", "dt"} & frame_metadata.keys()) < 3:
+        data_frame_metadata = get_metadata(data_fn)
+    tchans = frame_metadata.get("tchans", data_frame_metadata.get("tchans"))
+    df = frame_metadata.get("df", data_frame_metadata.get("df"))
+    dt = frame_metadata.get("dt", data_frame_metadata.get("dt"))
+
+    return _centered_frame_fbounds(center_freq, drift_rate, fchans, tchans, df, dt)
+
+
+def centered_frame(data_fn, center_freq, drift_rate, fchans, frame_metadata=None):
+    """
+    center_freq is in MHz.
+    """
+    frame = stg.Frame(data_fn, 
+                      **centered_frame_fbounds(data_fn, center_freq, drift_rate, fchans, frame_metadata=frame_metadata))
         
     frame.add_metadata({
         'drift_rate': drift_rate,
         'center_freq': center_freq,
     })
     return frame
-
-
-
-def _dedrift_frame(frame, drift_rate=None):
-    if drift_rate is None:
-        if "drift_rate" in frame.metadata:
-            drift_rate = frame.metadata["drift_rate"]
-        else:
-            raise KeyError("Please specify a drift rate to account for")
-            
-    # Calculate maximum pixel offset and raise an exception if necessary
-    max_offset = int(abs(drift_rate) * frame.tchans * frame.dt / frame.df)
-    if max_offset >= frame.data.shape[1]:
-        raise ValueError(f"The provided drift rate ({drift_rate} Hz/s) is too high for the frame dimensions")
-    tr_data = np.zeros((frame.data.shape[0], frame.data.shape[1] - max_offset))
-
-    for i in range(frame.data.shape[0]):
-        offset = int(abs(drift_rate) * i * frame.dt / frame.df)
-        if drift_rate >= 0:
-            start_idx = 0 + offset
-            end_idx = start_idx + tr_data.shape[1]
-        else:
-            end_idx = frame.data.shape[1] - offset
-            start_idx = end_idx - tr_data.shape[1]
-        tr_data[i] = frame.data[i, start_idx:end_idx]
-        
-    # Match frequency to truncated frame
-    if frame.ascending:
-        if drift_rate >= 0:
-            fch1 = frame.fs[0]
-        else:
-            fch1 = frame.fs[max_offset]
-    else:
-        if drift_rate >= 0:
-            fch1 = frame.fs[::-1][max_offset]
-        else:
-            fch1 = frame.fs[::-1][0]
-        
-    tr_frame = stg.Frame.from_data(frame.df, 
-                                   frame.dt, 
-                                   fch1, 
-                                   frame.ascending,
-                                   tr_data,
-                                   metadata=frame.metadata,
-                                   waterfall=frame.check_waterfall())
-#     if tr_frame.waterfall is not None and "source_name" in tr_frame.waterfall.header:
-#         tr_frame.waterfall.header["source_name"] += "_dedrifted"
-    return tr_frame

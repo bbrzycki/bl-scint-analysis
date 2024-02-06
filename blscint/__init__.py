@@ -19,6 +19,8 @@ from .simulations import (
     c95, hl07, rd18
 )
 
+from .observations import DSFile, DSPointing, DSCadence
+
 from .observations.bl_obs import check_btl
 
 from .diag_stats import (

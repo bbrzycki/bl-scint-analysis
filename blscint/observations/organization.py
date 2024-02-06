@@ -1,4 +1,5 @@
 from pathlib import Path
+import pandas as pd
 
 from blscint import analysis
 
@@ -14,11 +15,17 @@ class DSFile():
             self.timestamp = "_".join(stem_parts[2:4])
             self.target = "_".join(stem_parts[4:-1])
             self.scan = stem_parts[-1]
+        
+            d, s = self.timestamp.split("_")
+            self.unix = (int(d) - 40587) * 86400 + int(s)
+            self.mjd = int(d) + int(s) / 86400
         except IndexError:
             self.node = None
             self.timestamp = None
             self.target = None
             self.scan = None
+            self.unix = None
+            self.mjd = None
 
 
 class DSPointing():
@@ -26,7 +33,11 @@ class DSPointing():
         self.hits_df = pd.concat([pd.read_csv(dsf.path) for dsf in dsfiles], ignore_index=True)
 
         self.excluded_nodes = excluded_nodes 
-        self.hits_df = self.hits_df[self.hits_df["node"].isin(self.excluded_nodes)]
+        for i, node in enumerate(self.excluded_nodes):
+            if "blc" not in node:
+                self.excluded_nodes[i] = f"blc{int(node):02d}"
+            
+        self.hits_df = self.hits_df[~self.hits_df["node"].isin(self.excluded_nodes)]
         self.nodes = sorted(set(self.hits_df["node"]))
 
         racks = sorted(set([node[3] for node in self.nodes]))
@@ -35,6 +46,14 @@ class DSPointing():
         
         self.order_label = order_label 
         self.session_idx = session_idx 
+
+        self.unix = dsfiles[0].unix 
+        self.mjd = dsfiles[0].mjd
+        self.data_fn_template = dsfiles[0].path
+
+    def get_data_fn(self, node):
+        path = self.data_fn_template
+        return path.parent / '_'.join([node] + path.name.split('_')[1:])
 
 
 class DSCadence():
@@ -46,3 +65,6 @@ class DSCadence():
         self.pointings = dspointings 
         self.order = "".join(p.order_label for p in self.pointings)
         self.session_idx = self.pointings[0].session_idx
+
+    def find_event(self):
+        pass 

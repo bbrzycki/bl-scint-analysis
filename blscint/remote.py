@@ -71,3 +71,36 @@ def frame_from_df(df, idx=None, fchans=256):
 
         c.get(remote_temp_path, local=str(temp_path))
     return stg.Frame.load_pickle(temp_path)
+
+
+def cadence_from_df(dscadence, df, idx=None, fchans=256):
+    if idx is not None:
+        df = df.loc[idx]
+    signal_data_fn = df['data_fn']
+    signal_path = Path(signal_data_fn)
+    node = df['node']
+
+    temp_path = Path(tempfile.gettempdir()) / "bls_frame.pickle"
+
+    frame_list = []
+
+    for pointing in dscadence.pointings:
+
+        data_fn = pointing.get_data_fn(node)
+
+        python_code = (
+            f"import tempfile;"
+            f"save_loc = tempfile.gettempdir() + \"/bls_remote_frame.pickle\";"
+            f"import blscint as bls;"
+            f"fr = bls.centered_frame(\"{data_fn}\", {df['Uncorrected_Frequency']}, {df['DriftRate']}, fchans={fchans});"
+            f"fr.save_pickle(save_loc);"
+            f"print(save_loc);"
+        )
+        with Connection(node) as c:
+            result = c.run(f"source {CONDA_ACTIVATE_PATH}; conda activate bl; python -c '{python_code}'")
+            remote_temp_path = result.stdout.strip()
+
+            c.get(remote_temp_path, local=str(temp_path))
+        frame_list.append(stg.Frame.load_pickle(temp_path))
+    
+    return None 
