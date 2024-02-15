@@ -73,34 +73,53 @@ def frame_from_df(df, idx=None, fchans=256):
     return stg.Frame.load_pickle(temp_path)
 
 
-def cadence_from_df(dscadence, df, idx=None, fchans=256):
-    if idx is not None:
-        df = df.loc[idx]
-    signal_data_fn = df['data_fn']
-    signal_path = Path(signal_data_fn)
+def dsp_frame(dspointing, hit_idx, fchans=256):
+    df = dspointing.hits.loc[hit_idx]
+    data_fn = df['data_fn']
     node = df['node']
 
     temp_path = Path(tempfile.gettempdir()) / "bls_frame.pickle"
 
-    frame_list = []
+    python_code = (
+        f"import tempfile;"
+        f"save_loc = tempfile.gettempdir() + \"/bls_remote_frame.pickle\";"
+        f"import blscint as bls;"
+        f"fr = bls.centered_frame(\"{data_fn}\", {df['Uncorrected_Frequency']}, {df['DriftRate']}, fchans={fchans});"
+        f"fr.save_pickle(save_loc);"
+        f"print(save_loc);"
+    )
+    with Connection(node) as c:
+        result = c.run(f"source {CONDA_ACTIVATE_PATH}; conda activate bl; python -c '{python_code}'")
+        remote_temp_path = result.stdout.strip()
 
-    for pointing in dscadence.pointings:
+        c.get(remote_temp_path, local=str(temp_path))
+    return stg.Frame.load_pickle(temp_path)
+            
+        
+def dsc_cadence(dscadence, pointing_idx, hit_idx, fchans=256):
+    df = dscadence.pointings[pointing_idx].hits.loc[hit_idx]
+    signal_data_fn = df['data_fn']
+    signal_path = Path(signal_data_fn)
+    node = df['node']
 
-        data_fn = pointing.get_data_fn(node)
+    temp_path = Path(tempfile.gettempdir()) / "bls_cadence.pickle"
 
-        python_code = (
-            f"import tempfile;"
-            f"save_loc = tempfile.gettempdir() + \"/bls_remote_frame.pickle\";"
-            f"import blscint as bls;"
-            f"fr = bls.centered_frame(\"{data_fn}\", {df['Uncorrected_Frequency']}, {df['DriftRate']}, fchans={fchans});"
-            f"fr.save_pickle(save_loc);"
-            f"print(save_loc);"
-        )
-        with Connection(node) as c:
-            result = c.run(f"source {CONDA_ACTIVATE_PATH}; conda activate bl; python -c '{python_code}'")
-            remote_temp_path = result.stdout.strip()
+    data_fns = [str(p.get_data_fn(node)) for p in dscadence.pointings]
+    data_fns_str = "[\"" + "\",\"".join(data_fns) + "\"]"
 
-            c.get(remote_temp_path, local=str(temp_path))
-        frame_list.append(stg.Frame.load_pickle(temp_path))
+    python_code = (
+        f"import tempfile;"
+        f"save_loc = tempfile.gettempdir() + \"/bls_remote_cadence.pickle\";"
+        f"import blscint as bls;"
+        f"cad = bls.centered_cadence({data_fns_str}, {pointing_idx}, {df['Uncorrected_Frequency']}, {df['DriftRate']}, fchans={fchans}, order=\"{dscadence.order}\");"
+        f"cad.save_pickle(save_loc);"
+        f"print(save_loc);"
+    )
+    print(f"source {CONDA_ACTIVATE_PATH}; conda activate bl; python -c '{python_code}'")
+    with Connection(node) as c:
+        result = c.run(f"source {CONDA_ACTIVATE_PATH}; conda activate bl; python -c '{python_code}'")
+        remote_temp_path = result.stdout.strip()
+
+        c.get(remote_temp_path, local=str(temp_path))
     
-    return None 
+    return stg.Cadence.load_pickle(temp_path)

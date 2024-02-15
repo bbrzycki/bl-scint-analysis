@@ -6,7 +6,9 @@ from .ne2001 import (
 
 from .factors import hwhm_f, fwhm_f, hwem_f, fwem_f
 
-from .frame_processing import tnorm, extract_ts, get_metadata, centered_frame
+from .frame_processing import (
+    tnorm, extract_ts, get_metadata, centered_frame, centered_cadence
+)
 
 from .bounds import (
     plot_bounds, polyfit_bounds, threshold_bounds, threshold_baseline_bounds,
