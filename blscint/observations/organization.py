@@ -92,8 +92,11 @@ class DSCadence(collections.abc.MutableSequence):
         dspointings is a list of DSPointing objects, intended to manage 
         cadences of diagstat files.
         '''
-        self.pointings = dspointings 
-        self.session_idx = self.pointings[0].session_idx
+        self.pointings = dspointings
+
+    @property
+    def session_idx(self):
+        return self.pointings[0].session_idx
 
     @property 
     def unique_targets(self):
