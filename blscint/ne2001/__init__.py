@@ -4,5 +4,6 @@ from .ne2001 import (
 )
 
 from .sample_t_d import (
-    NESampler, min_d_ss, transition_freqs, central, coverage
+    NESampler, min_d_ss, transition_freqs, central, coverage,
+    mcmillan_rho_tot, carroll_ostlie_n, count_stars
 )

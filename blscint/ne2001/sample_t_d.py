@@ -53,6 +53,74 @@ def carroll_ostlie_n(R, z):
     return n0 * (np.exp(-np.abs(z) / Z_thin) + 0.085 * np.exp(-np.abs(z) / Z_thick)) * np.exp(-np.abs(R) / hR)
 
 
+def count_stars(l, b, bw, d_max, r_n=10, t_n=100, d_n=1000,
+                d_sampling_type='carrollostlie', 
+                galcen_distance=8.5,):
+    """
+    Estimate the number of stars within a beam, through the Galaxy.
+    Uses spherical integration within the beam.
+
+    Parameters
+    ----------
+    l : float
+        Galactic longitude (deg)
+    b : float
+        Galactic latitude (deg)
+    bw : float
+        Beam width (arcmin)
+    d_max : float
+        Maximum distance (kpc)
+    r_n : int, optional
+        Number of radial angular integration steps
+    t_n : int, optional
+        Number of transverse angular integration steps
+    d_n : int, optional
+        Number of distance integration steps
+
+    Returns
+    -------
+    num_stars : float
+        Number of stars within the beam
+    """
+    num_stars = 0
+    r = np.linspace(0, bw / 2, r_n)
+    t = np.linspace(0, 2 * np.pi, t_n, endpoint=False)
+    with tqdm.tqdm(total=r_n*t_n*d_n, leave=False) as pbar:
+        for r_int in r:
+            for t_int in t:
+                l_int = l - r_int / 60 * np.cos(t_int)
+                b_int = b + r_int / 60 * np.sin(t_int)
+                # print(l_int, b_int)
+                
+                d = np.linspace(0, d_max, d_n)
+                cs = coord.SkyCoord(l=l_int*u.deg, b=b_int*u.deg,
+                                    distance=d*u.kpc,
+                                    frame='galactic')
+                gcs = cs.transform_to(coord.Galactocentric(galcen_distance=galcen_distance*u.kpc)) 
+                gcs.representation_type = 'cylindrical'
+                if d_sampling_type == 'uniform':
+                    stellar_number_density = np.ones(d_n)
+                elif d_sampling_type == 'mcmillan':
+                    # Assume 1 star per 1 M_sun
+                    stellar_number_density = mcmillan_rho_tot(gcs.rho.to(u.kpc).value,
+                                                              gcs.z.to(u.kpc).value) * 1e-9
+                else:
+                    # For Carroll & Ostlie 2007, stars/pc^3
+                    stellar_number_density = carroll_ostlie_n(gcs.rho.to(u.kpc).value,
+                                                              gcs.z.to(u.kpc).value)
+
+                for i in range(d_n):
+                    # Number density in units of stars / pc^3. 
+                    dd = (d[1] - d[0]) * 1e3
+                    dr = (r[1] - r[0]) / 60 * np.pi / 180
+                    dt = t[1] - t[0]
+                    dV = (d[i] * 1e3)**2 * np.sin(r_int / 60 * np.pi / 180) * dd * dr * dt
+                    num_stars += stellar_number_density[i] * dV
+
+                    pbar.update(1)
+    return num_stars
+
+
 def coverage(t_ds, start=None, stop=None):
     """
     Get fractional coverage of scintillation timescales for a specified range.
