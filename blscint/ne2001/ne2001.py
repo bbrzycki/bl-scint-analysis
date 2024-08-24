@@ -109,7 +109,7 @@ def query_ne2001(l, b, d, field=None):
     if field == 'ALL':
         print(output)
         return
-             
+
     # Get unit
     unit = (output.split()[3].replace('pc-', 'pc.')
                              .replace('^{', '(')

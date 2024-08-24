@@ -101,7 +101,8 @@ class SignalManager(object):
                             linestyle=filter.get('linestyle'),
                             # facecolor=filter.get('color'),
                             fill=filter.get('fill'),
-                            alpha=filter.get('alpha'))
+                            alpha=filter.get('alpha'),
+                            density=filter.get('density'))
                 except ValueError:
                     pass
                 

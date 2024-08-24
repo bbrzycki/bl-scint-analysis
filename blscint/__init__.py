@@ -19,7 +19,7 @@ from .bounds import (
 
 from .simulations import (
     get_ts_arta, get_ts_fft, get_ts_pdf, SignalGenerator, synthesize_dataset,
-    c95, hl07, rd18
+    c95, hl07, rd18, BaseSyntheticDistRanker, HistogramRanker, KDERanker
 )
 
 from .observations import DSFile, DSPointing, DSCadence

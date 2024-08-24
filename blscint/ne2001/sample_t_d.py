@@ -177,7 +177,7 @@ def min_d_ss(l, b, d=(1e-3, 20), f=(4, 8), delta_d=0.01):
         if ne2001.query_ne2001(l, b, d[i], field='NU_T').to(u.GHz).value > f_max:
             return d[i] * u.kpc
     return None
-    
+
 
 class NESampler(object):
     """
@@ -198,7 +198,7 @@ class NESampler(object):
             
             raw_t_ds = np.empty(self.d.size)
             raw_nu_ds = np.empty(self.d.size)
-            for i in tqdm.tqdm(range(self.d.size)):
+            for i in range(self.d.size):
                 raw_t_ds[i] = ne2001.query_ne2001(l, b, self.d[i], field='SCINTIME').value
                 raw_nu_ds[i] = ne2001.query_ne2001(l, b, self.d[i], field='SBW').to(u.Hz).value
         except (TypeError, IndexError):
@@ -252,77 +252,227 @@ class NESampler(object):
         
         Set weight_by_flux=True to account for inverse square law.
         """
-        min_d = min_d_ss(self.l, self.b, d=(1e-3, 20), f=f, delta_d=self.delta_d)
-        if min_d is None:
-            raise RuntimeError('Strong regime is never achieved along the line of sight!')
-        else:
-            min_d = min_d.to(u.kpc).value
-            if verbose:
-                print(f"Min distance for strong scattering is {min_d:.3} kpc")
-        
-        if isinstance(self.d, (int, float)):
-            sampled_t_ds = np.repeat(self.raw_data.t_d, n)
-            sampled_nu_ds = np.repeat(self.raw_data.nu_d, n)
-            sampled_ds = np.repeat(self.d, n)
-        else:
-            d_idx = np.arange(self.d.size)
-            # Enforce strong scattering regime, and optional distance cut
-            if d is None:
-                d_idx = d_idx[(self.d >= min_d)]
-            else:
-                d_idx = d_idx[(self.d >= np.max([d[0], min_d])) & (self.d <= d[1])]
-                
-            # Transform to galactocentric coordinates to use stellar density models
-            cs = coord.SkyCoord(l=self.l*u.deg, b=self.b*u.deg,
-                                distance=self.d[d_idx]*u.kpc,
-                                frame='galactic')
-            gcs = cs.transform_to(coord.Galactocentric(galcen_distance=galcen_distance*u.kpc)) 
-            gcs.representation_type = 'cylindrical'
-            if d_sampling_type == 'uniform':
-                d_rel_prob = np.ones(d_idx.shape)
-            elif d_sampling_type == 'mcmillan':
-                d_rel_prob = mcmillan_rho_tot(gcs.rho.to(u.kpc).value,
-                                              gcs.z.to(u.kpc).value)
-            else:
-                # For Carroll & Ostlie 2007
-                d_rel_prob = carroll_ostlie_n(gcs.rho.to(u.kpc).value,
-                                              gcs.z.to(u.kpc).value)
-                 
-            if weight_by_flux:
-                d_rel_prob = d_rel_prob / self.d[d_idx]**2
-            d_prob = d_rel_prob / np.sum(d_rel_prob)
-            sampled_idx = self.rng.choice(d_idx, size=n, p=d_prob)
-                 
-            sampled_t_ds = self.raw_data.t_d[sampled_idx]
-            sampled_nu_ds = self.raw_data.nu_d[sampled_idx]
-            sampled_ds = self.d[sampled_idx]
-        
-        try:
-            f = self.rng.uniform(f[0], f[1], n)
-        except (TypeError, IndexError):
-            f = np.repeat(f, n)
-
-        try:
-            v = self.rng.uniform(v[0], v[1], n)
-        except (TypeError, IndexError):
-            v = np.repeat(v, n)
+        t_ds = np.zeros(n)
+        nu_ds = np.zeros(n)
+        ds = np.zeros(n)
+        fs = np.zeros(n)
+        vs = np.zeros(n)
+        collected = 0
+        with tqdm.tqdm(total=n) as pbar:
+            while collected < n:
+                try:
+                    f_samp = self.rng.uniform(f[0], f[1])
+                except (TypeError, IndexError):
+                    f_samp = f
+                try:
+                    v_samp = self.rng.uniform(v[0], v[1])
+                except (TypeError, IndexError):
+                    v_samp = v
             
-        # Scintillation timescale scaling    
-        if scint_regime == 'very_strong':
-            # According to Cordes & Lazio 1991, there should be an inner scale l1 scaling here as well.
-            t_ds = sampled_t_ds * (f / 1)**1 * (np.abs(v) / 100)**(-1)
-            nu_ds = sampled_nu_ds * (f / 1)**4
-        else:
-            t_ds = sampled_t_ds * (f / 1)**1.2 * (np.abs(v) / 100)**(-1)
-            nu_ds = sampled_nu_ds * (f / 1)**4.4
+                if isinstance(self.d, (int, float)):
+                    sampled_t_d = self.raw_data.t_d
+                    sampled_nu_d = self.raw_data.nu_d
+                    sampled_d = self.d
+                else:
+                    d_idx = np.arange(self.d.size)
+                    # Enforce strong scattering regime, and optional distance cut
+                    if d is None:
+                        pass
+                    else:
+                        d_idx = d_idx[(self.d >= d[0]) & (self.d <= d[1])]
+                        
+                    # Transform to galactocentric coordinates to use stellar density models
+                    cs = coord.SkyCoord(l=self.l*u.deg, b=self.b*u.deg,
+                                        distance=self.d[d_idx]*u.kpc,
+                                        frame='galactic')
+                    gcs = cs.transform_to(coord.Galactocentric(galcen_distance=galcen_distance*u.kpc)) 
+                    gcs.representation_type = 'cylindrical'
+                    if d_sampling_type == 'uniform':
+                        d_rel_prob = np.ones(d_idx.shape)
+                    elif d_sampling_type == 'mcmillan':
+                        d_rel_prob = mcmillan_rho_tot(gcs.rho.to(u.kpc).value,
+                                                      gcs.z.to(u.kpc).value)
+                    else:
+                        # For Carroll & Ostlie 2007
+                        d_rel_prob = carroll_ostlie_n(gcs.rho.to(u.kpc).value,
+                                                      gcs.z.to(u.kpc).value)
+                         
+                    if weight_by_flux:
+                        d_rel_prob = d_rel_prob / self.d[d_idx]**2
+                    d_prob = d_rel_prob / np.sum(d_rel_prob)
+                    sampled_idx = self.rng.choice(d_idx, p=d_prob)
+                         
+                    sampled_t_d = self.raw_data.t_d[sampled_idx]
+                    sampled_nu_d = self.raw_data.nu_d[sampled_idx]
+                    sampled_d = self.d[sampled_idx]
+                
+                    
+                # Scintillation timescale scaling    
+                if scint_regime == 'very_strong':
+                    # According to Cordes & Lazio 1991, there should be an inner scale l1 scaling here as well.
+                    t_d = sampled_t_d * (f_samp / 1)**1 * (np.abs(v_samp) / 100)**(-1)
+                    nu_d = sampled_nu_d * (f_samp / 1)**4
+                else:
+                    t_d = sampled_t_d * (f_samp / 1)**1.2 * (np.abs(v_samp) / 100)**(-1)
+                    nu_d = sampled_nu_d * (f_samp / 1)**4.4
+                
+                if ne2001.query_ne2001(self.l, self.b, sampled_d, field='NU_T').to(u.GHz).value > f_samp:
+                    t_ds[collected] = t_d
+                    nu_ds[collected] = nu_d
+                    ds[collected] = sampled_d
+                    fs[collected] = f_samp
+                    vs[collected] = v_samp
+                    collected += 1
+                    pbar.update(1)
+                    
         
-        # return {
-        #     't_d': t_ds,
-        #     'tau_d': self.tau_d(nu_ds),
-        #     'nu_d': nu_ds,
-        #     'nu_sb': self.nu_sb(t_ds),
-        # }
-        return NEData(t_d=t_ds, nu_d=nu_ds, d=sampled_ds, f=f, v=v)
+        return NEData(t_d=t_ds, nu_d=nu_ds, d=ds, f=fs, v=vs)
+    
+
+# class NESampler(object):
+#     """
+#     Class for sampling scintillation estimates from NE2001 electron density model.
+#     """
+#     def __init__(self, l, b, 
+#                  d=(0.01, 20),
+#                  delta_d=0.01,
+#                  seed=None):
+#         self.rng = np.random.default_rng(seed)
+#         self.l, self.b = l, b
+#         self.delta_d = delta_d
+        
+#         try:
+#             # Sample by density
+#             self.d = np.arange(d[0], d[1] + delta_d / 2, delta_d)
+            
+            
+#             raw_t_ds = np.empty(self.d.size)
+#             raw_nu_ds = np.empty(self.d.size)
+#             for i in range(self.d.size):
+#                 raw_t_ds[i] = ne2001.query_ne2001(l, b, self.d[i], field='SCINTIME').value
+#                 raw_nu_ds[i] = ne2001.query_ne2001(l, b, self.d[i], field='SBW').to(u.Hz).value
+#         except (TypeError, IndexError):
+#             self.d = d
+#             raw_t_ds = ne2001.query_ne2001(l, b, d, field='SCINTIME').value
+#             raw_nu_ds = ne2001.query_ne2001(l, b, d, field='SBW').to(u.Hz).value
+#             print(f"Transition Frequency is {ne2001.query_ne2001(l, b, d=d, field='NU_T')}")
+
+#         self.raw_data = NEData(t_d=raw_t_ds, nu_d=raw_nu_ds)
+            
+#     def save(self, filename):
+#         """
+#         Save entire sampler (including NE2001 calculations) as a pickled file (.pickle).
+#         """
+#         with open(filename, 'wb') as f:
+#             pickle.dump(self, f)
+
+#     @classmethod
+#     def load(cls, filename):
+#         """
+#         Load sampler object from a pickled file (.pickle), 
+#         created with NESampler.save.
+#         """
+#         with open(filename, 'rb') as f:
+#             sampler = pickle.load(f)
+#         return sampler
+            
+#     def tau_d(self, nu_d, C1=1.16):
+#         """
+#         Temporal broadening.
+#         C1 is 1.53 for a medium with a square-law structure function. NE2001 paper.
+#         """
+#         return C1 / (2 * np.pi * nu_d)
+    
+#     def nu_sb(self, t_d, C2=2.02):
+#         """
+#         Spectral broadening.
+#         """
+#         return C2 / (2 * np.pi * t_d)
+    
+#     def sample(self, n=1000, f=(4, 8), v=(5, 100), d=None, 
+#                d_sampling_type='mcmillan', 
+#                weight_by_flux=False,
+#                galcen_distance=8.5,
+#                scint_regime='moderate', verbose=False,):
+#         """
+#         Sample frequencies, transverse velocities, and scale base model values appropriately.
+        
+#         Sampling type can be: 'uniform', 'mcmillan', 'carrollostlie'.
+#         McMillan model uses 8.21 kpc to the galactic center, but NE2001 uses 8.5 kpc. 
+        
+#         Set weight_by_flux=True to account for inverse square law.
+#         """
+#         min_d = min_d_ss(self.l, self.b, d=(1e-3, 20), f=f, delta_d=self.delta_d)
+#         if min_d is None:
+#             raise RuntimeError('Strong regime is never achieved along the line of sight!')
+#         else:
+#             min_d = min_d.to(u.kpc).value
+#             if verbose:
+#                 print(f"Min distance for strong scattering is {min_d:.3} kpc")
+        
+#         if isinstance(self.d, (int, float)):
+#             sampled_t_ds = np.repeat(self.raw_data.t_d, n)
+#             sampled_nu_ds = np.repeat(self.raw_data.nu_d, n)
+#             sampled_ds = np.repeat(self.d, n)
+#         else:
+#             d_idx = np.arange(self.d.size)
+#             # Enforce strong scattering regime, and optional distance cut
+#             if d is None:
+#                 d_idx = d_idx[(self.d >= min_d)]
+#             else:
+#                 d_idx = d_idx[(self.d >= np.max([d[0], min_d])) & (self.d <= d[1])]
+                
+#             # Transform to galactocentric coordinates to use stellar density models
+#             cs = coord.SkyCoord(l=self.l*u.deg, b=self.b*u.deg,
+#                                 distance=self.d[d_idx]*u.kpc,
+#                                 frame='galactic')
+#             gcs = cs.transform_to(coord.Galactocentric(galcen_distance=galcen_distance*u.kpc)) 
+#             gcs.representation_type = 'cylindrical'
+#             if d_sampling_type == 'uniform':
+#                 d_rel_prob = np.ones(d_idx.shape)
+#             elif d_sampling_type == 'mcmillan':
+#                 d_rel_prob = mcmillan_rho_tot(gcs.rho.to(u.kpc).value,
+#                                               gcs.z.to(u.kpc).value)
+#             else:
+#                 # For Carroll & Ostlie 2007
+#                 d_rel_prob = carroll_ostlie_n(gcs.rho.to(u.kpc).value,
+#                                               gcs.z.to(u.kpc).value)
+                 
+#             if weight_by_flux:
+#                 d_rel_prob = d_rel_prob / self.d[d_idx]**2
+#             d_prob = d_rel_prob / np.sum(d_rel_prob)
+#             sampled_idx = self.rng.choice(d_idx, size=n, p=d_prob)
+                 
+#             sampled_t_ds = self.raw_data.t_d[sampled_idx]
+#             sampled_nu_ds = self.raw_data.nu_d[sampled_idx]
+#             sampled_ds = self.d[sampled_idx]
+        
+#         try:
+#             f = self.rng.uniform(f[0], f[1], n)
+#         except (TypeError, IndexError):
+#             f = np.repeat(f, n)
+
+#         try:
+#             v = self.rng.uniform(v[0], v[1], n)
+#         except (TypeError, IndexError):
+#             v = np.repeat(v, n)
+            
+#         # Scintillation timescale scaling    
+#         if scint_regime == 'very_strong':
+#             # According to Cordes & Lazio 1991, there should be an inner scale l1 scaling here as well.
+#             t_ds = sampled_t_ds * (f / 1)**1 * (np.abs(v) / 100)**(-1)
+#             nu_ds = sampled_nu_ds * (f / 1)**4
+#         else:
+#             t_ds = sampled_t_ds * (f / 1)**1.2 * (np.abs(v) / 100)**(-1)
+#             nu_ds = sampled_nu_ds * (f / 1)**4.4
+        
+#         # return {
+#         #     't_d': t_ds,
+#         #     'tau_d': self.tau_d(nu_ds),
+#         #     'nu_d': nu_ds,
+#         #     'nu_sb': self.nu_sb(t_ds),
+#         # }
+#         return NEData(t_d=t_ds, nu_d=nu_ds, d=sampled_ds, f=f, v=v)
     
     
 class NEData(object):
