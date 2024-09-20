@@ -13,3 +13,4 @@ sphinx-rtd-theme>=0.4.3
 sphinx-theme==1.0
 jort
 click
+fabric

@@ -15,6 +15,8 @@ def autocorr(ts, remove_spike=False):
     """
     Calculate full autocorrelation, normalizing time series to zero mean and unit variance.
     """
+    if isinstance(ts, stg.TimeSeries):
+        ts = ts.array()
     ts = (ts - np.mean(ts)) #/ np.std(ts)
     acf = np.correlate(ts, ts, 'full')[-len(ts):]
     if remove_spike:
@@ -34,6 +36,10 @@ def get_diag_stats(ts, dt=None, pow=5/3, use_triangle=True):
     If the time resolution dt is given, then scale ACF-fit pixel parameters to 
     the time resolution.
     """
+    if isinstance(ts, stg.TimeSeries):
+        dt = ts.dt 
+        ts = ts.array()
+
     diag_stats = {}
     
     # diag_stats['fchans'] = len(ts)
@@ -234,7 +240,7 @@ def ts_stat_plots(ts_arr, t_d=None, dt=None):
     plt.show()
     
     
-def ts_ac_plot(ts_arr, t_d, dt, p=2):
+def ts_ac_plot(ts_arr, t_d, dt, p=2, target_pow=5/3):
     """
     Plot autocorrelations, mean += std dev at each lag over a list of time series arrays. 
     Plot in reference to scintillation timescale and time resolution, up to lag p.
@@ -245,9 +251,7 @@ def ts_ac_plot(ts_arr, t_d, dt, p=2):
     
     for i in np.arange(0, p+1):
         ac_dict['lag'].append(i)
-        ac_dict['ac'].append(stg.func_utils.gaussian(i,
-                                                     0, 
-                                                     t_d / dt / factors.hwem_m))
+        ac_dict['ac'].append(scint_acf(dt * i, t_d, pow=target_pow))
         ac_dict['type'].append('target')
         
     j = 0
@@ -270,8 +274,8 @@ def ts_ac_plot(ts_arr, t_d, dt, p=2):
                       hue='type', 
                       markers=True, 
                       dashes=False, 
-                      ci='sd')
+                      errorbar='sd')
     
 #     ax.set_xticks(np.arange(0, p+1))
     ax.grid()
-    plt.show()
+    # plt.show()

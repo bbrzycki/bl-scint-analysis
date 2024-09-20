@@ -1,3 +1,4 @@
+from pathlib import Path
 import numpy as np
 from scipy import optimize
 from astropy.stats import sigma_clip
@@ -58,7 +59,8 @@ def extract_ts(frame, bound='threshold', divide_std=True, as_data=None):
         raise ValueError("Bound should be either 'threshold' or 'snr'")
     
     n_frame = tnorm(frame, divide_std=divide_std, as_data=as_data)
-    tr_frame = n_frame.get_slice(l, r)
+    # tr_frame = n_frame.get_slice(l, r)
+    tr_frame = stg.get_slice(n_frame, l, r)
     # ts = tr_frame.integrate('f')
     # ts = ts / np.mean(ts)
     ts = stg.integrate(tr_frame, axis='f', as_frame=True)
@@ -90,48 +92,192 @@ def get_metadata(fn):
     }
 
 
-def _dedrift_frame(frame, drift_rate=None):
-    if drift_rate is None:
-        if "drift_rate" in frame.metadata:
-            drift_rate = frame.metadata["drift_rate"]
-        else:
-            raise KeyError("Please specify a drift rate to account for")
-            
-    # Calculate maximum pixel offset and raise an exception if necessary
-    max_offset = int(abs(drift_rate) * frame.tchans * frame.dt / frame.df)
-    if max_offset >= frame.data.shape[1]:
-        raise ValueError(f"The provided drift rate ({drift_rate} Hz/s) is too high for the frame dimensions")
-    tr_data = np.zeros((frame.data.shape[0], frame.data.shape[1] - max_offset))
+# def centered_frame(data_fn, center_freq, drift_rate, fchans, frame_metadata=None):
+#     """
+#     center_freq is in MHz.
+#     """
+#     if frame_metadata is None:
+#         frame_metadata = get_metadata(data_fn)
 
-    for i in range(frame.data.shape[0]):
-        offset = int(abs(drift_rate) * i * frame.dt / frame.df)
-        if drift_rate >= 0:
-            start_idx = 0 + offset
-            end_idx = start_idx + tr_data.shape[1]
-        else:
-            end_idx = frame.data.shape[1] - offset
-            start_idx = end_idx - tr_data.shape[1]
-        tr_data[i] = frame.data[i, start_idx:end_idx]
+#     tchans = frame_metadata["tchans"]
+#     df = frame_metadata["df"]
+#     dt = frame_metadata["dt"]
+
+#     adj_center_freq = center_freq + drift_rate / 1e6 * tchans / 2
+#     max_offset = int(abs(drift_rate) * tchans * dt / df)
+#     if drift_rate >= 0:
+#         adj_fchans = [0, max_offset]
+#     else:
+#         adj_fchans = [max_offset, 0]
+    
+#     f_start = adj_center_freq - (fchans / 2 + adj_fchans[0]) * df / 1e6
+#     f_stop = adj_center_freq + (fchans / 2 + adj_fchans[1]) * df / 1e6
+#     frame = stg.Frame(data_fn, f_start=f_start, f_stop=f_stop)
         
-    # Match frequency to truncated frame
-    if frame.ascending:
-        if drift_rate >= 0:
-            fch1 = frame.fs[0]
-        else:
-            fch1 = frame.fs[max_offset]
+#     frame.add_metadata({
+#         'drift_rate': drift_rate,
+#         'center_freq': center_freq,
+#     })
+#     return frame
+
+
+# def centered_frame_fbounds(data_fn, center_freq, drift_rate, fchans, frame_metadata={}):
+#     """
+#     center_freq is in MHz.
+#     """
+#     data_frame_metadata = {}
+#     if len({"tchans", "df", "dt"} & frame_metadata.keys()) < 3:
+#         data_frame_metadata = get_metadata(data_fn)
+#     tchans = frame_metadata.get("tchans", data_frame_metadata.get("tchans"))
+#     df = frame_metadata.get("df", data_frame_metadata.get("df"))
+#     dt = frame_metadata.get("dt", data_frame_metadata.get("dt"))
+
+#     adj_center_freq = center_freq + drift_rate / 1e6 * tchans / 2
+#     max_offset = int(abs(drift_rate) * tchans * dt / df)
+#     if drift_rate >= 0:
+#         adj_fchans = [0, max_offset]
+#     else:
+#         adj_fchans = [max_offset, 0]
+    
+#     f_start = adj_center_freq - (fchans / 2 + adj_fchans[0]) * df / 1e6
+#     f_stop = adj_center_freq + (fchans / 2 + adj_fchans[1]) * df / 1e6
+#     return dict(f_start=f_start, f_stop=f_stop)
+
+
+# def centered_frame(data_fn, center_freq, drift_rate, fchans, frame_metadata=None):
+#     """
+#     center_freq is in MHz.
+#     """
+#     frame = stg.Frame(data_fn, 
+#                       **centered_frame_fbounds(data_fn, center_freq, drift_rate, fchans, frame_metadata=frame_metadata))
+        
+#     frame.add_metadata({
+#         'drift_rate': drift_rate,
+#         'center_freq': center_freq,
+#     })
+#     return frame
+
+
+def _centered_frame_fbounds(center_freq, drift_rate, fchans, tchans, df, dt):
+    adj_center_freq = center_freq + drift_rate / 1e6 * tchans / 2
+    max_offset = int(abs(drift_rate) * tchans * dt / df)
+    if drift_rate >= 0:
+        adj_fchans = [0, max_offset]
     else:
-        if drift_rate >= 0:
-            fch1 = frame.fs[::-1][max_offset]
-        else:
-            fch1 = frame.fs[::-1][0]
-        
-    tr_frame = stg.Frame.from_data(frame.df, 
-                                   frame.dt, 
-                                   fch1, 
-                                   frame.ascending,
-                                   tr_data,
-                                   metadata=frame.metadata,
-                                   waterfall=frame.check_waterfall())
-#     if tr_frame.waterfall is not None and "source_name" in tr_frame.waterfall.header:
-#         tr_frame.waterfall.header["source_name"] += "_dedrifted"
-    return tr_frame
+        adj_fchans = [max_offset, 0]
+    
+    f_start = adj_center_freq - (fchans / 2 + adj_fchans[0]) * df / 1e6
+    f_stop = adj_center_freq + (fchans / 2 + adj_fchans[1]) * df / 1e6
+    return dict(f_start=f_start, f_stop=f_stop)
+
+
+def centered_frame_fbounds(data_fn, center_freq, drift_rate, fchans, frame_metadata={}):
+    """
+    center_freq is in MHz.
+    """
+    data_frame_metadata = {}
+    if len({"tchans", "df", "dt"} & frame_metadata.keys()) < 3:
+        data_frame_metadata = get_metadata(data_fn)
+    tchans = frame_metadata.get("tchans", data_frame_metadata.get("tchans"))
+    df = frame_metadata.get("df", data_frame_metadata.get("df"))
+    dt = frame_metadata.get("dt", data_frame_metadata.get("dt"))
+
+    return _centered_frame_fbounds(center_freq, drift_rate, fchans, tchans, df, dt)
+
+
+def centered_frame(data_fn, center_freq, drift_rate, fchans, frame_metadata={}):
+    """
+    center_freq is in MHz.
+    """
+    f_bounds = centered_frame_fbounds(data_fn, 
+                                      center_freq, 
+                                      drift_rate, 
+                                      fchans, 
+                                      frame_metadata=frame_metadata)
+    frame = stg.Frame(data_fn, **f_bounds)
+    frame.add_metadata({
+        'drift_rate': drift_rate,
+        'center_freq': center_freq,
+    })
+    return frame
+
+
+def _centered_cadence_fbounds(center_freq, 
+                              drift_rate, 
+                              fchans, 
+                              tchans1, 
+                              tchans2, 
+                              df, 
+                              dt):
+    """
+    tchans is list of times in seconds
+    """
+    adj_center_freq = center_freq #+ drift_rate / 1e6 * tchans / 2
+
+    offset1 = -int(abs(drift_rate) * tchans1 * dt / df)
+    offset2 = int(abs(drift_rate) * tchans2 * dt / df)
+    if drift_rate >= 0:
+        adj_fchans = [offset1, offset2]
+    else:
+        adj_fchans = [offset2, offset1]
+    
+    f_start = adj_center_freq - (fchans / 2 + adj_fchans[0]) * df / 1e6
+    f_stop = adj_center_freq + (fchans / 2 + adj_fchans[1]) * df / 1e6
+    return dict(f_start=f_start, f_stop=f_stop)
+
+
+def centered_cadence_fbounds(data_fns, 
+                             pointing_idx, 
+                             center_freq, 
+                             drift_rate, 
+                             fchans, 
+                             frame_metadata={}):
+    """
+    data_fns is list of data filenames
+    """
+    data_frame_metadata = {}
+    if len({"tchans", "df", "dt"} & frame_metadata.keys()) < 3:
+        data_frame_metadata = get_metadata(data_fns[0])
+    tchans = frame_metadata.get("tchans", data_frame_metadata.get("tchans"))
+    df = frame_metadata.get("df", data_frame_metadata.get("df"))
+    dt = frame_metadata.get("dt", data_frame_metadata.get("dt"))
+
+    unix_times = []
+    for data_fn in data_fns:
+        d, s = Path(data_fn).name.split(".")[0].split("_")[2:4]
+        unix = (int(d) - 40587) * 86400 + int(s)
+        unix_times.append(unix)
+
+    tchans1 = (unix_times[0] - unix_times[pointing_idx]) / dt
+    tchans2 = (unix_times[-1] + tchans * dt - unix_times[pointing_idx]) / dt 
+
+    return _centered_cadence_fbounds(center_freq, drift_rate, fchans, tchans1, tchans2, df, dt)
+
+
+def centered_cadence(data_fns, 
+                     pointing_idx, 
+                     center_freq, 
+                     drift_rate, 
+                     fchans, 
+                     frame_metadata={},
+                     order="ABAB"):
+    """
+    center_freq is in MHz.
+    """
+    f_bounds = centered_cadence_fbounds(data_fns, 
+                                        pointing_idx, 
+                                        center_freq, 
+                                        drift_rate, 
+                                        fchans, 
+                                        frame_metadata=frame_metadata)
+
+    frame_list = []
+    for data_fn in data_fns:
+        frame = stg.Frame(data_fn, **f_bounds)
+        frame.add_metadata({
+            'drift_rate': drift_rate,
+            'center_freq': center_freq,
+        })
+        frame_list.append(frame)
+    
+    return stg.OrderedCadence(frame_list=frame_list, order=order)

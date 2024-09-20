@@ -57,26 +57,12 @@ class HitParser(object):
             # Make the assumption that all file metadata is consistent
             self.frame_metadata = frame_processing.get_metadata(data_fn)
 
-        tchans = self.frame_metadata["tchans"]
-        df = self.frame_metadata["df"]
-        dt = self.frame_metadata["dt"]
-
-        adj_center_freq = center_freq + drift_rate / 1e6 * tchans / 2
-        max_offset = int(abs(drift_rate) * tchans * dt / df)
-        if drift_rate >= 0:
-            adj_fchans = [0, max_offset]
-        else:
-            adj_fchans = [max_offset, 0]
-        
-        f_start = adj_center_freq - (fchans / 2 + adj_fchans[0]) * df / 1e6
-        f_stop = adj_center_freq + (fchans / 2 + adj_fchans[1]) * df / 1e6
-        frame = stg.Frame(data_fn, f_start=f_start, f_stop=f_stop)
-            
-        frame.add_metadata({
-            'drift_rate': drift_rate,
-            'center_freq': center_freq,
-            'idx': idx,
-        })
+        frame = frame_processing.centered_frame(data_fn,
+                                                center_freq,
+                                                drift_rate,
+                                                fchans,
+                                                frame_metadata=self.frame_metadata)
+        frame.add_metadata(dict(idx=idx))
         return frame
 
             

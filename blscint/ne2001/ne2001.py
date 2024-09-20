@@ -38,7 +38,10 @@ def to_galactic(ra, dec=None):
         else:
             c = SkyCoord(ra, dec)
     gal = c.galactic
-    return gal.l.value, gal.b.value
+    if gal.l.value > 180:
+        return gal.l.value - 360, gal.b.value
+    else:
+        return gal.l.value, gal.b.value
 
 
 def to_ra_dec(l, b=None):
@@ -106,7 +109,7 @@ def query_ne2001(l, b, d, field=None):
     if field == 'ALL':
         print(output)
         return
-             
+
     # Get unit
     unit = (output.split()[3].replace('pc-', 'pc.')
                              .replace('^{', '(')

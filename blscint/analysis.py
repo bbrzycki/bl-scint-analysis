@@ -18,7 +18,7 @@ from . import bounds
 from . import hit_parser
 
 
-def as_file_list(fns, node_excludes=[], str_excludes=[]):
+def as_file_list(fns, excluded_nodes=[], excluded_strs=[]):
     """
     Expand files, using glob pattern matching, into a full list.
     In addition, user can specify strings to exclude in any filenames.
@@ -27,10 +27,10 @@ def as_file_list(fns, node_excludes=[], str_excludes=[]):
     ----------
     fns : list
         List of files or patterns, as strings or pathlib.Paths
-    node_excludes : list, optional
+    excluded_nodes : list, optional
         List which nodes should be excluded from analysis, particularly
         for overlapped spectrum
-    str_excludes : list, optional
+    excluded_strs : list, optional
         List of strings that shouldn't appear in filenames
         
     Returns
@@ -49,10 +49,11 @@ def as_file_list(fns, node_excludes=[], str_excludes=[]):
             paths.extend(Path().glob(str(pattern)))
     
     paths.sort()
-    for exclude_str in node_excludes:
-        exclude_str = f"{int(exclude_str):02d}"
-        paths = [fn for fn in paths if f"blc{exclude_str}" not in fn.name]
-    for exclude_str in str_excludes:
+    for exclude_str in excluded_nodes:
+        if "blc" not in exclude_str:
+            exclude_str = f"blc{int(exclude_str):02d}"
+        paths = [fn for fn in paths if exclude_str not in fn.name]
+    for exclude_str in excluded_strs:
         paths = [fn for fn in paths if exclude_str not in fn.name]
     return paths
 
@@ -201,7 +202,7 @@ def diagstat(filename,
                                                   data_fn=data_path)
                         # Dedrift using hit metadata
                         frame = stg.dedrift(frame) 
-                        spec = frame.integrate()
+                        spec = stg.integrate(frame)
                         l, r, _ = bounds.polyfit_bounds(spec, 
                                                         deg=1, 
                                                         snr_threshold=10)
@@ -222,10 +223,11 @@ def diagstat(filename,
                         ts, (l, r) = frame_processing.extract_ts(frame,
                                                                  bound=bound,
                                                                  divide_std=divide_std)
+                            
                         if save_ts:
-                            tsdump[idx, :] = ts
+                            tsdump[idx, :] = ts.array()
 
-                        ts_stats = diag_stats.get_diag_stats(ts, dt=frame.dt)
+                        ts_stats = diag_stats.get_diag_stats(ts)
                         ts_stats.update({
                             'fchans': fchans,
                             'l': l,
