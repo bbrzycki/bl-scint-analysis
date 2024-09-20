@@ -11,9 +11,83 @@ import numpy as np
 import setigen as stg
 import blscint as bls
 from blscint.observations.organization import DSFile, DSPointing, DSCadence
+from blscint.remote import dsc_cadence 
+
+from context import DATA_DIR, DB_PATH, DIAGSTAT_DIR
 
 
-def construct_cadence_list(nested_target_list, diagstat_dir):
+nested_target_list = [
+    [
+        [
+            ["DIAG_SCINT_GP_NGP"],
+            ["DIAG_SCINT_GP_L5_B2", "DIAG_SCINT_GP_L5_B1"],
+            ["DIAG_SCINT_GP_L5_B0", "DIAG_SCINT_GP_L5_B-1"],
+            ["DIAG_SCINT_GP_L5_B-2", "DIAG_SCINT_GP_L4_B-2"],
+            ["DIAG_SCINT_GP_L4_B-1", "DIAG_SCINT_GP_L4_B0"],
+            ["DIAG_SCINT_GP_L4_B1", "DIAG_SCINT_GP_L4_B2"],
+            ["DIAG_SCINT_GP_L3_B2", "DIAG_SCINT_GP_L3_B1"],
+            ["DIAG_SCINT_GP_L3_B0", "DIAG_SCINT_GP_L3_B-1"]
+        ],
+        ["07", "40", "47", "50", "57", "60"]
+    ],
+    [
+        [
+            ["DIAG_SCINT_GP_NGP"],
+            ["DIAG_SCINT_GP_L3_B-2", "DIAG_SCINT_GP_L2_B-2"],
+            ["DIAG_SCINT_GP_L2_B-1", "DIAG_SCINT_GP_L2_B0"],
+            ["DIAG_SCINT_GP_L2_B1", "DIAG_SCINT_GP_L2_B2"],
+            ["DIAG_SCINT_GP_L1_B2", "DIAG_SCINT_GP_L1_B1"],
+            ["DIAG_SCINT_GP_L1_B0", "DIAG_SCINT_GP_L1_B-1"],
+            ["DIAG_SCINT_GP_L1_B-2", "DIAG_SCINT_GP_L0_B-2"],
+            ["DIAG_SCINT_GP_L0_B-1", "DIAG_SCINT_GP_L0_B1"],
+            ["DIAG_SCINT_GP_L0_B2", "DIAG_SCINT_GP_L-1_B2"],
+            ["DIAG_SCINT_GP_L-1_B1", "DIAG_SCINT_GP_L-1_B0"]
+        ],
+        ["47", "50", "57", "60", "67", "70"]
+    ],
+    [
+        [
+            ["DIAG_SCINT_GP_NGP"],
+            ["DIAG_SCINT_GP_L-1_B-1", "DIAG_SCINT_GP_L-1_B-2"],
+            ["DIAG_SCINT_GP_L-2_B-2", "DIAG_SCINT_GP_L-2_B-1"],
+            ["DIAG_SCINT_GP_L-2_B0", "DIAG_SCINT_GP_L-2_B1"],
+            ["DIAG_SCINT_GP_L-2_B2", "DIAG_SCINT_GP_L-3_B2"],
+            ["DIAG_SCINT_GP_L-3_B1", "DIAG_SCINT_GP_L-3_B0"],
+            ["DIAG_SCINT_GP_L-3_B-1", "DIAG_SCINT_GP_L-3_B-2"],
+            ["DIAG_SCINT_GP_L-4_B-2", "DIAG_SCINT_GP_L-4_B-1"],
+            ["DIAG_SCINT_GP_L-4_B0", "DIAG_SCINT_GP_L-4_B1"]
+        ],
+        ["47", "50", "57", "60", "67", "70"]
+    ],
+    [
+        [
+            ["DIAG_SCINT_GP_NGP"],
+            ["DIAG_SCINT_GP_L-4_B2", "DIAG_SCINT_GP_L-5_B2"],
+            ["DIAG_SCINT_GP_L-5_B1", "DIAG_SCINT_GP_L-5_B0"],
+            ["DIAG_SCINT_GP_L-5_B-1", "DIAG_SCINT_GP_L-5_B-2"],
+            ["DIAG_SCINT_GC_A00", "DIAG_SCINT_GC_C01"],
+            ["DIAG_SCINT_GC_C01", "DIAG_SCINT_GC_C07"],
+            ["DIAG_SCINT_GC_B01", "DIAG_SCINT_GC_B04"],
+            ["DIAG_SCINT_GC_B02", "DIAG_SCINT_GC_B05"],
+            ["DIAG_SCINT_GC_B03", "DIAG_SCINT_GC_B06"],
+            ["DIAG_SCINT_GC_C02", "DIAG_SCINT_GC_C04"],
+            ["DIAG_SCINT_GC_C03", "DIAG_SCINT_GC_C05"]
+        ],
+        ["47", "50", "57", "60", "67", "70"]
+    ],
+    [
+        [
+            ["DIAG_SCINT_GC_NGP"],
+            ["DIAG_SCINT_GC_C08", "DIAG_SCINT_GC_C06"],
+            ["DIAG_SCINT_GC_C11", "DIAG_SCINT_GC_C09"],
+            ["DIAG_SCINT_GC_C10", "DIAG_SCINT_GC_C12"]
+        ],
+        ["47", "50", "57", "60", "67", "70"]
+    ]
+]
+
+
+def construct_cadence_list(nested_target_list):
     NGP_pointings = []
     cadence_list = []
     for session_idx, (target_list, excluded_nodes) in enumerate(nested_target_list):
@@ -25,7 +99,7 @@ def construct_cadence_list(nested_target_list, diagstat_dir):
 
             for target_idx, target in enumerate(target_keywords):
                 # print(target)
-                paths = bls.as_file_list(diagstat_dir / f"*{target}*.diagstat.csv",
+                paths = bls.as_file_list(DIAGSTAT_DIR / f"*{target}*.diagstat.csv",
                                         excluded_nodes=excluded_nodes)
                 timestamps = ["_".join([dsf.timestamp]) for fn in paths for dsf in [DSFile(fn)]]
                 # print(sorted(set(timestamps)))
@@ -38,7 +112,7 @@ def construct_cadence_list(nested_target_list, diagstat_dir):
                     session_min_timestamp = int(timestamp[:5])
 
                     dsfiles = [DSFile(path) 
-                            for path in bls.as_file_list(diagstat_dir / f"*{timestamp}_{target}*.diagstat.csv")]
+                            for path in bls.as_file_list(DIAGSTAT_DIR / f"*{timestamp}_{target}*.diagstat.csv")]
                     NGP_pointings.append(DSPointing(dsfiles, 
                                                     excluded_nodes=excluded_nodes, 
                                                     session_idx=session_idx))
@@ -51,7 +125,7 @@ def construct_cadence_list(nested_target_list, diagstat_dir):
                     
                     for iteration_idx, timestamp in enumerate(valid_timestamps):
                         dsfiles = [DSFile(path) 
-                                for path in bls.as_file_list(diagstat_dir / f"*{timestamp}_{target}*.diagstat.csv")]
+                                for path in bls.as_file_list(DIAGSTAT_DIR / f"*{timestamp}_{target}*.diagstat.csv")]
                         # print(iteration_idx, target_keywords, target_idx, iteration_idx * len(target_keywords) + target_idx)
                         dspointings[iteration_idx * len(target_keywords) + target_idx] = DSPointing(dsfiles, 
                                                                                                     excluded_nodes=excluded_nodes,
@@ -111,6 +185,8 @@ def search_for_nearby_hits(cadence, max_drift_rate=10):
 def direction_filter(cadence, on_labels='A', verbose=False):
     """
     Implement direction on sky filter and collect events in Pandas dataframe.
+
+    
     """
     events = []
 
