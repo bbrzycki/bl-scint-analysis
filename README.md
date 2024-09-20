@@ -1,15 +1,21 @@
 # blscint
 #### Analysis code for identifying ISM scintillation in detected narrowband radio signals
 
-This library provides methods for probing the presence of strong ISM scintillation in detected narrowband radio signals as a method of analyzing technosignatures. There are a few main sections: scintillation timescale estimation using NE2001 ([Cordes & Lazio 2002](https://arxiv.org/abs/astro-ph/0207156)), scintillated intensity time series synthesis, and statistical analysis of intensity time series (for characterizing local RFI and filtering technosignature candidates). All of these are described in detail in [Brzycki et al. 2023](https://iopscience.iop.org/article/10.3847/1538-4357/acdee0/meta) and Brzcyki et al. 2024 (submitted). 
+This library provides methods for probing the presence of strong ISM scintillation in detected narrowband radio signals as a method of analyzing technosignatures. There are a few main sections: scintillation timescale estimation using NE2001 ([Cordes & Lazio 2002](https://arxiv.org/abs/astro-ph/0207156)), scintillated intensity time series synthesis, and statistical analysis of intensity time series (for characterizing local RFI and filtering technosignature candidates). All of these are described in detail in [Brzycki et al. 2023](https://iopscience.iop.org/article/10.3847/1538-4357/acdee0/meta) and Brzycki et al. 2024 (submitted). 
 
-### Scintillation timescale estimation
+### Table of Contents
+- [Scintillation timescale estimation](#ne2001)
+- [Synthetic scintillated intensity time series and likelihood estimation](#synthetic)
+- [Intensity timeseries analysis](#timeseries)
+- [In practice: analyzing narrowband signals in radio observations](#analysis)
+
+### Scintillation timescale estimation <a name="ne2001"></a>
 
 The `blscint.ne2001` modules use the original Fortran implementation of the NE2001 model to estimate quantities relevant in detecting ISM scintillation in narrowband technosignatures. The most basic function is `query_ne2001`, which simply runs the model to retrieve quantities at 1 GHz and transverse velocity 100 km/s. For scintillation searches, we care most about the scintillation timescale, which can be estimated as a function of detected frequency and transverse velocity using `get_t_d`. 
 
 To help figure out which scintillation timescales are likely given a set of observational parameters, we can use Monte Carlo random sampling. We decide on a galaxy model for the number density of stars (Carroll & Ostlie, McMillan, or otherwise), and use that to simulate the distribution of plausible emitting civilizations. We provide a simple integration-based estimation of the number of stars in a given sky direction and beamwidth with the `count_stars` function. The `NESampler` class is used to do Monte Carlo sampling for a given sky direction (l, b) over each free parameter (frequency, transverse velocity, distance). 
 
-### Synthetic scintillated intensity time series and likelihood estimation
+### Synthetic scintillated intensity time series and likelihood estimation <a name="synthetic"></a>
 
 To provide a point of reference, we provide functions that synthesize scintillated intensity time series. This can be done in multiple ways. For direct time series simulations, we can produce the expected theoretical statistics with an FFT-based approach, with `get_ts_fft`. We can also use an autoreggressive process described in [Cario & Nelson 1996](https://www.sciencedirect.com/science/article/pii/016763779600017X) with `get_ts_arta`. These have their pros and cons; the FFT approach is generally faster but has constraints in the size of the time series, but the ARTA approach can generate arbitrarily sized time series more reliably. 
 
@@ -17,7 +23,7 @@ The `SignalGenerator` class allows you to quickly produce a dataset of synthetic
 
 We can estimation the likelihood that a detected signal is scintillated using `KDERanker`, which inherits from `BaseSyntheticDistRanker`. These classes use synthetic scintillated datasets (with specific scintillation timescales) produced with the above methods to calculate scintillation likelihoods. The base class lets you produce plots as in Brzycki et al. 2024, with methods such as `plot_ranking_vs_frequency` and `plot_diagstat_corner_plot`. These employ the ranking method `KDERanker.rank(hit)`.
 
-### Timeseries analysis
+### Intensity Timeseries analysis <a name="timeseries"></a>
 
 Most of `blscint` is dedicated to analysis of detected signals for scintillated properties. We largely use [Setigen](https://github.com/bbrzycki/setigen) Frames and Cadences to facilitate analysis and data operations.
 
@@ -31,7 +37,7 @@ In `blscint.diag_stats`, we compute the diagnostic statistics given a normalized
 
 The class `SignalManager` allows you to combine the contents of diagstat csvs from both real signals (observations) and synthetic signal datasets, so that you can plot histograms of various quantities or statistics and compare between observations and theory. 
 
-### Analysis of narrowband signals in radio observations
+### In practice: analyzing narrowband signals in radio observations <a name="analysis"></a>
 
 We provide a command-line utility `blscint` to run analysis routines from the command-line. For a dedicated search, this utility is called with various options to run deDoppler detection and diagnostic statistic extraction. 
 
