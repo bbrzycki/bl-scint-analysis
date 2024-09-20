@@ -1,4 +1,4 @@
-# blscint
+# blscint [![DOI](https://zenodo.org/badge/231815285.svg)](https://zenodo.org/doi/10.5281/zenodo.13820385)
 #### Analysis code for identifying ISM scintillation in detected narrowband radio signals
 
 This library provides methods for probing the presence of strong ISM scintillation in detected narrowband radio signals as a method of analyzing technosignatures. There are a few main sections: scintillation timescale estimation using NE2001 ([Cordes & Lazio 2002](https://arxiv.org/abs/astro-ph/0207156)), scintillated intensity time series synthesis, and statistical analysis of intensity time series (for characterizing local RFI and filtering technosignature candidates). All of these are described in detail in [Brzycki et al. 2023](https://iopscience.iop.org/article/10.3847/1538-4357/acdee0/meta) and Brzycki et al. 2024 (submitted). 
